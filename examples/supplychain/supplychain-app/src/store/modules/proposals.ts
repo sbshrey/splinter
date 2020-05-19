@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { SupplychainProposal, Ballot } from './node_modules/@/store/models';
-import { listProposals, proposalVote, submitPayload } from './node_modules/@/store/api';
-import { signPayload } from './node_modules/@/utils/crypto';
+import { SupplychainProposal, Ballot } from '@/store/models';
+import { listProposals, proposalVote, submitPayload } from '@/store/api';
+import { signPayload } from '@/utils/crypto';
 
 interface Vote {
   proposalID: string;

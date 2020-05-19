@@ -12,10 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import Vue from './node_modules/vue';
-import Router from './node_modules/vue-router';
-import Home from './node_modules/@/views/Home.vue';
-import store from './node_modules/@/store';
+import Vue from 'vue';
+import Router from 'vue-router';
+import Home from '@/views/Home.vue';
+import store from '@/store';
 
 Vue.use(Router);
 
@@ -40,16 +40,16 @@ const router = new Router({
     {
       path: '/login',
       name: 'login',
-      component: () => import('./node_modules/@/views/Login.vue'),
+      component: () => import('@/views/Login.vue'),
     },
     {
       path: '/register',
       name: 'register',
-      component: () => import('./node_modules/@/views/Register.vue'),
+      component: () => import('@/views/Register.vue'),
     },
     {
       path: '/dashboard',
-      component: () => import('./node_modules/@/views/Dashboard.vue'),
+      component: () => import('@/views/Dashboard.vue'),
       meta: {
         requiresAuth: true,
       },
@@ -57,7 +57,7 @@ const router = new Router({
         {
           path: 'home',
           name: 'dashboard',
-          component: () => import('./node_modules/@/views/DashboardHome.vue'),
+          component: () => import('@/views/DashboardHome.vue'),
           meta: {
             requiresAuth: true,
             loadingMessage: 'Loading dashboard',
@@ -66,7 +66,7 @@ const router = new Router({
         {
           path: 'invitations',
           name: 'invitations',
-          component: () => import('./node_modules/@/views/Invitations.vue'),
+          component: () => import('@/views/Invitations.vue'),
           meta: {
             requiresAuth: true,
             loadingMessage: 'Loading invitations',
@@ -75,7 +75,7 @@ const router = new Router({
         {
           path: 'supplychains/:id',
           name: 'supplychains',
-          component: () => import('./node_modules/@/views/SupplychainDetail.vue'),
+          component: () => import('@/views/SupplychainDetail.vue'),
           meta: {
             requiresAuth: true,
             loadingMessage: 'Loading supplychain',
@@ -84,7 +84,7 @@ const router = new Router({
         {
           path: 'supplychains/:id/games/:gameNameHash',
           name: 'games',
-          component: () => import('./node_modules/@/views/GameDetail.vue'),
+          component: () => import('@/views/GameDetail.vue'),
           meta: {
             requiresAuth: true,
           },
@@ -92,7 +92,7 @@ const router = new Router({
         {
           path: '/not-found',
           name: 'not-found',
-          component: () => import('./node_modules/@/views/NotFound.vue'),
+          component: () => import('@/views/NotFound.vue'),
         },
       ],
     },

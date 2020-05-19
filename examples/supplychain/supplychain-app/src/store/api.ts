@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import axios from './node_modules/axios';
+import axios from 'axios';
 import {
   SupplychainNotification,
   SupplychainProposal,
@@ -28,7 +28,7 @@ import {
   BatchInfo,
 } from './models';
 
-import { hashGameName } from './node_modules/@/utils/xo-games';
+import { hashGameName } from '@/utils/xo-games';
 
 export const supplychainAPI = axios.create({
   baseURL: '/api',

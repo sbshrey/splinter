@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { SupplychainNotification } from './node_modules/@/store/models';
-import { listNotifications, markRead } from './node_modules/@/store/api';
+import { SupplychainNotification } from '@/store/models';
+import { listNotifications, markRead } from '@/store/api';
 
 export interface NotificationState {
   notifications: SupplychainNotification[];

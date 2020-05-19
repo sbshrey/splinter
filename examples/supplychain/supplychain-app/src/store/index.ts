@@ -12,19 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import Vue from './node_modules/vue';
-import Vuex from './node_modules/vuex';
-import userModule from './node_modules/@/store/modules/user';
-import notificationsModule from './node_modules/@/store/modules/notifications';
-import selectedSupplychainModule from './node_modules/@/store/modules/selectedSupplychain';
-import votesModule from './node_modules/@/store/modules/votes';
-import gamesModule from './node_modules/@/store/modules/games';
-import proposalsModule from './node_modules/@/store/modules/proposals';
-import pageLoadingModule from './node_modules/@/store/modules/pageLoading';
-import supplychainsModule from './node_modules/@/store/modules/supplychains';
-import nodesModule from './node_modules/@/store/modules/nodes';
+import Vue from 'vue';
+import Vuex from 'vuex';
+import userModule from '@/store/modules/user';
+import notificationsModule from '@/store/modules/notifications';
+import selectedSupplychainModule from '@/store/modules/selectedSupplychain';
+import votesModule from '@/store/modules/votes';
+import gamesModule from '@/store/modules/games';
+import proposalsModule from '@/store/modules/proposals';
+import pageLoadingModule from '@/store/modules/pageLoading';
+import supplychainsModule from '@/store/modules/supplychains';
+import nodesModule from '@/store/modules/nodes';
 
-import VuexPersistence from './node_modules/vuex-persist';
+import VuexPersistence from 'vuex-persist';
 
 Vue.use(Vuex);
 

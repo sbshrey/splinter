@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { Supplychain } from './node_modules/@/store/models';
-import { fetchSupplychain } from './node_modules/@/store/api';
+import { Supplychain } from '@/store/models';
+import { fetchSupplychain } from '@/store/api';
 
 export interface SelectedSupplychain {
   supplychain: Supplychain;

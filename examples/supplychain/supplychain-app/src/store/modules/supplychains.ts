@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { NewSupplychainProposal, Supplychain } from './node_modules/@/store/models';
-import { supplychainPropose, submitPayload, listSupplychains } from './node_modules/@/store/api';
-import { signPayload } from './node_modules/@/utils/crypto';
+import { NewSupplychainProposal, Supplychain } from '@/store/models';
+import { supplychainPropose, submitPayload, listSupplychains } from '@/store/api';
+import { signPayload } from '@/utils/crypto';
 
 export interface SupplychainState {
   supplychains: Supplychain[];
