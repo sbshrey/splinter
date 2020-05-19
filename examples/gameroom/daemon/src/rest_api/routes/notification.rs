@@ -16,7 +16,7 @@ use std::collections::HashMap;
 use std::time::{Duration, SystemTime};
 
 use actix_web::{error, web, Error, HttpResponse};
-use gameroom_database::{helpers, models::GameroomNotification, ConnectionPool};
+use supplychain_database::{helpers, models::SupplychainNotification, ConnectionPool};
 
 use crate::rest_api::RestApiResponseError;
 
@@ -38,7 +38,7 @@ struct ApiNotification {
 }
 
 impl ApiNotification {
-    fn from(db_notification: GameroomNotification) -> ApiNotification {
+    fn from(db_notification: SupplychainNotification) -> ApiNotification {
         ApiNotification {
             id: db_notification.id,
             notification_type: db_notification.notification_type.to_string(),
@@ -142,7 +142,7 @@ pub async fn read_notification(
     pool: web::Data<ConnectionPool>,
     notification_id: web::Path<i64>,
 ) -> Result<HttpResponse, Error> {
-    match web::block(move || update_gameroom_notification(pool, *notification_id)).await {
+    match web::block(move || update_supplychain_notification(pool, *notification_id)).await {
         Ok(notification) => Ok(HttpResponse::Ok().json(SuccessResponse::new(notification))),
         Err(err) => {
             match err {
@@ -162,11 +162,11 @@ pub async fn read_notification(
     }
 }
 
-fn update_gameroom_notification(
+fn update_supplychain_notification(
     pool: web::Data<ConnectionPool>,
     id: i64,
 ) -> Result<ApiNotification, RestApiResponseError> {
-    if let Some(notification) = helpers::update_gameroom_notification(&*pool.get()?, id)? {
+    if let Some(notification) = helpers::update_supplychain_notification(&*pool.get()?, id)? {
         return Ok(ApiNotification::from(notification));
     }
     Err(RestApiResponseError::NotFound(format!(

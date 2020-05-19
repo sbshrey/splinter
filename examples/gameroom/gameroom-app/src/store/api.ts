@@ -14,15 +14,15 @@
 
 import axios from 'axios';
 import {
-  GameroomNotification,
-  GameroomProposal,
+  SupplychainNotification,
+  SupplychainProposal,
   UserRegistration,
   UserCredentials,
   UserAuthResponse,
-  NewGameroomProposal,
+  NewSupplychainProposal,
   Member,
   Node,
-  Gameroom,
+  Supplychain,
   Ballot,
   Game,
   BatchInfo,
@@ -30,11 +30,11 @@ import {
 
 import { hashGameName } from '@/utils/xo-games';
 
-export const gameroomAPI = axios.create({
+export const supplychainAPI = axios.create({
   baseURL: '/api',
 });
 
-gameroomAPI.interceptors.response.use(
+supplychainAPI.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response) {
@@ -43,10 +43,10 @@ gameroomAPI.interceptors.response.use(
           throw new Error('Incorrect username or password.');
         case 500:
           throw new Error(
-            'The Gameroom server has encountered an error. Please contact the administrator.',
+            'The Supplychain server has encountered an error. Please contact the administrator.',
           );
         case 503:
-          throw new Error('The Gameroom server is unavailable. Please contact the administrator.');
+          throw new Error('The Supplychain server is unavailable. Please contact the administrator.');
         default:
           throw new Error(error.response.data.message);
       }
@@ -74,13 +74,13 @@ async function http(
         if (request.status >= 400 && request.status < 500) {
           reject('Failed to send request. Contact the administrator for help.');
         } else {
-          reject('The Gameroom server has encountered an error. Please contact the administrator.');
+          reject('The Supplychain server has encountered an error. Please contact the administrator.');
         }
       }
     };
     request.onerror = () => {
       console.error(request);
-      reject('The Gameroom server has encountered an error. Please contact the administrator.');
+      reject('The Supplychain server has encountered an error. Please contact the administrator.');
     };
     request.send(data);
   });
@@ -90,59 +90,59 @@ async function http(
 export async function userCreate(
   user: UserRegistration,
 ): Promise<UserAuthResponse> {
-  const response = await gameroomAPI.post('/users', user);
+  const response = await supplychainAPI.post('/users', user);
   return response.data.data as UserAuthResponse;
 }
 
 export async function userAuthenticate(
   userCredentials: UserCredentials,
 ): Promise<UserAuthResponse> {
-    const response = await gameroomAPI.post('/users/authenticate', userCredentials);
+    const response = await supplychainAPI.post('/users/authenticate', userCredentials);
     return response.data.data as UserAuthResponse;
 }
 
-// Gamerooms
-export async function gameroomPropose(
-  gameroomProposal: NewGameroomProposal,
+// Supplychains
+export async function supplychainPropose(
+  supplychainProposal: NewSupplychainProposal,
 ): Promise<Uint8Array> {
-  const response = await gameroomAPI.post('/gamerooms/propose', gameroomProposal);
+  const response = await supplychainAPI.post('/supplychains/propose', supplychainProposal);
   return response.data.data.payload_bytes as Uint8Array;
 }
 
-export async function listGamerooms(): Promise<Gameroom[]> {
-  const response = await gameroomAPI.get('/gamerooms?limit=1000');
-  const gamerooms = response.data.data.map((gameroom: any) => {
-    const members = gameroom.members.map(async (member: any) => {
+export async function listSupplychains(): Promise<Supplychain[]> {
+  const response = await supplychainAPI.get('/supplychains?limit=1000');
+  const supplychains = response.data.data.map((supplychain: any) => {
+    const members = supplychain.members.map(async (member: any) => {
       const node = await getNode(member.node_id);
       member.organization = node.metadata.organization;
       return member as Member;
     });
-    Promise.all(members).then((m) => gameroom.members = m);
-    return gameroom as Gameroom;
+    Promise.all(members).then((m) => supplychain.members = m);
+    return supplychain as Supplychain;
   });
-  return Promise.all(gamerooms);
+  return Promise.all(supplychains);
 }
 
-export async function fetchGameroom(circuitID: string): Promise<Gameroom> {
-  const response = await gameroomAPI.get(`/gamerooms/${circuitID}`);
-  const gameroom = response.data;
-  const members = gameroom.members.map(async (member: any) => {
+export async function fetchSupplychain(circuitID: string): Promise<Supplychain> {
+  const response = await supplychainAPI.get(`/supplychains/${circuitID}`);
+  const supplychain = response.data;
+  const members = supplychain.members.map(async (member: any) => {
     const node = await getNode(member.node_id);
     member.organization = node.metadata.organization;
     return member as Member;
   });
-  Promise.all(members).then((m) => gameroom.members = m);
-  return gameroom as Gameroom;
+  Promise.all(members).then((m) => supplychain.members = m);
+  return supplychain as Supplychain;
 }
 
 // Nodes
 export async function listNodes(): Promise<Node[]> {
-  const response = await gameroomAPI.get('/nodes?limit=1000');
+  const response = await supplychainAPI.get('/nodes?limit=1000');
   return response.data.data as Node[];
 }
 
 export async function listGames(circuitID: string): Promise<Game[]> {
-  const response = await gameroomAPI.get(`/xo/${circuitID}/games`);
+  const response = await supplychainAPI.get(`/xo/${circuitID}/games`);
   const games = response.data.data.map(async (game: any) => {
     game.committed = true;
     game.game_name_hash = hashGameName(game.game_name);
@@ -162,7 +162,7 @@ export async function submitPayload(payload: Uint8Array): Promise<void> {
 
 export async function submitBatch(payload: Uint8Array, circuitID: string): Promise<BatchInfo[]> {
   return await http(
-    'POST', `/gamerooms/${circuitID}/batches`, payload, (request: XMLHttpRequest,
+    'POST', `/supplychains/${circuitID}/batches`, payload, (request: XMLHttpRequest,
   ) => {
     request.setRequestHeader('Content-Type', 'application/octet-stream');
   }).catch((err) => {
@@ -175,8 +175,8 @@ export async function submitBatch(payload: Uint8Array, circuitID: string): Promi
 }
 
 // Proposals
-export async function listProposals(): Promise<GameroomProposal[]> {
-  const response = await gameroomAPI.get('/proposals?limit=1000');
+export async function listProposals(): Promise<SupplychainProposal[]> {
+  const response = await supplychainAPI.get('/proposals?limit=1000');
 
   const getMembers = async (member: any) => {
     const node = await getNode(member.node_id);
@@ -185,8 +185,8 @@ export async function listProposals(): Promise<GameroomProposal[]> {
   };
 
   const combineProposal = async (proposal: any) => {
-    const gameroom = await fetchGameroom(proposal.circuit_id);
-    proposal.status = gameroom.status;
+    const supplychain = await fetchSupplychain(proposal.circuit_id);
+    proposal.status = supplychain.status;
 
     const requester = await getNode(proposal.requester_node_id);
     proposal.requester_org = requester.metadata.organization;
@@ -198,12 +198,12 @@ export async function listProposals(): Promise<GameroomProposal[]> {
   };
 
   return await Promise.all(
-    response.data.data.map((proposal: GameroomProposal) => combineProposal(proposal)));
+    response.data.data.map((proposal: SupplychainProposal) => combineProposal(proposal)));
 }
 
 async function getNode(id: string): Promise<Node> {
     try {
-      const response = await gameroomAPI.get(`/nodes/${id}`);
+      const response = await supplychainAPI.get(`/nodes/${id}`);
       return response.data.data as Node;
     } catch (e) {
       console.warn(`Node with ID: ${id} not found. It may have been removed from the registry.`);
@@ -220,7 +220,7 @@ async function getNode(id: string): Promise<Node> {
 
 export async function proposalVote(ballot: Ballot, proposalID: string,
 ): Promise<Uint8Array> {
-  const response = await gameroomAPI.post(`/proposals/${proposalID}/vote`, ballot);
+  const response = await supplychainAPI.post(`/proposals/${proposalID}/vote`, ballot);
   return response.data.data.payload_bytes as Uint8Array;
 }
 
@@ -228,14 +228,14 @@ export async function proposalVote(ballot: Ballot, proposalID: string,
 const getOrgName = async (notif: any) => {
   const node = await getNode(notif.node_id);
   notif.requester_org = node.metadata.organization;
-  return notif as GameroomNotification;
+  return notif as SupplychainNotification;
 };
 
-export async function listNotifications(publicKey: string): Promise<GameroomNotification[]> {
-  const isDisplayed = (value: GameroomNotification): boolean => {
-    const displayedNotifs = ['gameroom_proposal', 'circuit_active'];
+export async function listNotifications(publicKey: string): Promise<SupplychainNotification[]> {
+  const isDisplayed = (value: SupplychainNotification): boolean => {
+    const displayedNotifs = ['supplychain_proposal', 'circuit_active'];
     if (displayedNotifs.includes(value.notification_type) || value.notification_type.match('^new_game_created')) {
-      if (value.notification_type === 'gameroom_proposal'
+      if (value.notification_type === 'supplychain_proposal'
           && value.requester === publicKey) {
         return false;
       }
@@ -243,16 +243,16 @@ export async function listNotifications(publicKey: string): Promise<GameroomNoti
     } else { return false; }
   };
 
-  const response = await gameroomAPI.get('/notifications?limit=1000');
-  const notifications = response.data.data as GameroomNotification[];
+  const response = await supplychainAPI.get('/notifications?limit=1000');
+  const notifications = response.data.data as SupplychainNotification[];
   const filtered = notifications.filter(isDisplayed);
   return await Promise.all(filtered.map((notif: any) => getOrgName(notif)));
 }
 
-export async function markRead(id: string): Promise<GameroomNotification> {
-  const response = await gameroomAPI.patch(`/notifications/${id}/read`);
+export async function markRead(id: string): Promise<SupplychainNotification> {
+  const response = await supplychainAPI.patch(`/notifications/${id}/read`);
   const notif = response.data.data;
   const node = await getNode(notif.node_id);
   notif.requester_org = node.metadata.organization;
-  return notif as GameroomNotification;
+  return notif as SupplychainNotification;
 }

@@ -19,10 +19,10 @@ use sawtooth_sdk::signing::Error as KeyGenError;
 
 use crate::authorization_handler::AppAuthHandlerError;
 use crate::rest_api::RestApiServerError;
-use gameroom_database::DatabaseError;
+use supplychain_database::DatabaseError;
 
 #[derive(Debug)]
-pub enum GameroomDaemonError {
+pub enum SupplychainDaemonError {
     LoggingInitializationError(flexi_logger::FlexiLoggerError),
     ConfigurationError(Box<ConfigurationError>),
     DatabaseError(Box<DatabaseError>),
@@ -32,40 +32,40 @@ pub enum GameroomDaemonError {
     GetNodeError(GetNodeError),
 }
 
-impl Error for GameroomDaemonError {
+impl Error for SupplychainDaemonError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
-            GameroomDaemonError::LoggingInitializationError(err) => Some(err),
-            GameroomDaemonError::ConfigurationError(err) => Some(err),
-            GameroomDaemonError::DatabaseError(err) => Some(&**err),
-            GameroomDaemonError::RestApiError(err) => Some(err),
-            GameroomDaemonError::AppAuthHandlerError(err) => Some(err),
-            GameroomDaemonError::KeyGenError(err) => Some(err),
-            GameroomDaemonError::GetNodeError(err) => Some(err),
+            SupplychainDaemonError::LoggingInitializationError(err) => Some(err),
+            SupplychainDaemonError::ConfigurationError(err) => Some(err),
+            SupplychainDaemonError::DatabaseError(err) => Some(&**err),
+            SupplychainDaemonError::RestApiError(err) => Some(err),
+            SupplychainDaemonError::AppAuthHandlerError(err) => Some(err),
+            SupplychainDaemonError::KeyGenError(err) => Some(err),
+            SupplychainDaemonError::GetNodeError(err) => Some(err),
         }
     }
 }
 
-impl fmt::Display for GameroomDaemonError {
+impl fmt::Display for SupplychainDaemonError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            GameroomDaemonError::LoggingInitializationError(e) => {
+            SupplychainDaemonError::LoggingInitializationError(e) => {
                 write!(f, "Logging initialization error: {}", e)
             }
-            GameroomDaemonError::ConfigurationError(e) => write!(f, "Coniguration error: {}", e),
-            GameroomDaemonError::DatabaseError(e) => write!(f, "Database error: {}", e),
-            GameroomDaemonError::RestApiError(e) => write!(f, "Rest API error: {}", e),
-            GameroomDaemonError::AppAuthHandlerError(e) => write!(
+            SupplychainDaemonError::ConfigurationError(e) => write!(f, "Coniguration error: {}", e),
+            SupplychainDaemonError::DatabaseError(e) => write!(f, "Database error: {}", e),
+            SupplychainDaemonError::RestApiError(e) => write!(f, "Rest API error: {}", e),
+            SupplychainDaemonError::AppAuthHandlerError(e) => write!(
                 f,
                 "The application authorization handler returned an error: {}",
                 e
             ),
-            GameroomDaemonError::KeyGenError(e) => write!(
+            SupplychainDaemonError::KeyGenError(e) => write!(
                 f,
                 "an error occurred while generating a new key pair: {}",
                 e
             ),
-            GameroomDaemonError::GetNodeError(e) => write!(
+            SupplychainDaemonError::GetNodeError(e) => write!(
                 f,
                 "an error occurred while getting splinterd node information: {}",
                 e
@@ -74,33 +74,33 @@ impl fmt::Display for GameroomDaemonError {
     }
 }
 
-impl From<flexi_logger::FlexiLoggerError> for GameroomDaemonError {
-    fn from(err: flexi_logger::FlexiLoggerError) -> GameroomDaemonError {
-        GameroomDaemonError::LoggingInitializationError(err)
+impl From<flexi_logger::FlexiLoggerError> for SupplychainDaemonError {
+    fn from(err: flexi_logger::FlexiLoggerError) -> SupplychainDaemonError {
+        SupplychainDaemonError::LoggingInitializationError(err)
     }
 }
 
-impl From<DatabaseError> for GameroomDaemonError {
-    fn from(err: DatabaseError) -> GameroomDaemonError {
-        GameroomDaemonError::DatabaseError(Box::new(err))
+impl From<DatabaseError> for SupplychainDaemonError {
+    fn from(err: DatabaseError) -> SupplychainDaemonError {
+        SupplychainDaemonError::DatabaseError(Box::new(err))
     }
 }
 
-impl From<RestApiServerError> for GameroomDaemonError {
-    fn from(err: RestApiServerError) -> GameroomDaemonError {
-        GameroomDaemonError::RestApiError(err)
+impl From<RestApiServerError> for SupplychainDaemonError {
+    fn from(err: RestApiServerError) -> SupplychainDaemonError {
+        SupplychainDaemonError::RestApiError(err)
     }
 }
 
-impl From<AppAuthHandlerError> for GameroomDaemonError {
-    fn from(err: AppAuthHandlerError) -> GameroomDaemonError {
-        GameroomDaemonError::AppAuthHandlerError(err)
+impl From<AppAuthHandlerError> for SupplychainDaemonError {
+    fn from(err: AppAuthHandlerError) -> SupplychainDaemonError {
+        SupplychainDaemonError::AppAuthHandlerError(err)
     }
 }
 
-impl From<KeyGenError> for GameroomDaemonError {
-    fn from(err: KeyGenError) -> GameroomDaemonError {
-        GameroomDaemonError::KeyGenError(err)
+impl From<KeyGenError> for SupplychainDaemonError {
+    fn from(err: KeyGenError) -> SupplychainDaemonError {
+        SupplychainDaemonError::KeyGenError(err)
     }
 }
 
@@ -121,9 +121,9 @@ impl fmt::Display for ConfigurationError {
     }
 }
 
-impl From<ConfigurationError> for GameroomDaemonError {
+impl From<ConfigurationError> for SupplychainDaemonError {
     fn from(err: ConfigurationError) -> Self {
-        GameroomDaemonError::ConfigurationError(Box::new(err))
+        SupplychainDaemonError::ConfigurationError(Box::new(err))
     }
 }
 
@@ -142,8 +142,8 @@ impl fmt::Display for GetNodeError {
     }
 }
 
-impl From<GetNodeError> for GameroomDaemonError {
+impl From<GetNodeError> for SupplychainDaemonError {
     fn from(err: GetNodeError) -> Self {
-        GameroomDaemonError::GetNodeError(err)
+        SupplychainDaemonError::GetNodeError(err)
     }
 }

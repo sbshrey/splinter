@@ -13,8 +13,8 @@
 // limitations under the License.
 
 mod authenticate;
-mod gameroom;
-mod gameroom_websocket;
+mod supplychain;
+mod supplychain_websocket;
 mod node;
 mod notification;
 mod proposal;
@@ -22,8 +22,8 @@ mod submit;
 mod xo_games;
 
 pub use authenticate::*;
-pub use gameroom::*;
-pub use gameroom_websocket::*;
+pub use supplychain::*;
+pub use supplychain_websocket::*;
 pub use node::*;
 pub use notification::*;
 pub use proposal::*;

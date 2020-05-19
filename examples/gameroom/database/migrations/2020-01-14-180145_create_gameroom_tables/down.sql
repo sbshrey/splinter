@@ -12,11 +12,11 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-DROP TABLE gameroom_user;
-DROP TABLE gameroom;
-DROP TABLE gameroom_proposal;
+DROP TABLE supplychain_user;
+DROP TABLE supplychain;
+DROP TABLE supplychain_proposal;
 DROP TABLE proposal_vote_record;
-DROP TABLE gameroom_member;
-DROP TABLE gameroom_service;
-DROP TABLE gameroom_notification;
+DROP TABLE supplychain_member;
+DROP TABLE supplychain_service;
+DROP TABLE supplychain_notification;
 DROP TABLE xo_games;

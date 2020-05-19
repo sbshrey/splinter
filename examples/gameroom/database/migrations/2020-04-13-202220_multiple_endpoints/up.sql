@@ -13,8 +13,8 @@
 -- limitations under the License.
 -- -----------------------------------------------------------------------------
 
-ALTER TABLE gameroom_member RENAME COLUMN endpoint TO endpoints;
-ALTER TABLE gameroom_member ALTER COLUMN endpoints DROP DEFAULT;
-ALTER TABLE gameroom_member ALTER COLUMN endpoints
+ALTER TABLE supplychain_member RENAME COLUMN endpoint TO endpoints;
+ALTER TABLE supplychain_member ALTER COLUMN endpoints DROP DEFAULT;
+ALTER TABLE supplychain_member ALTER COLUMN endpoints
   TYPE TEXT[] USING array[endpoints];
-ALTER TABLE gameroom_member ALTER COLUMN endpoints SET DEFAULT '{}';
+ALTER TABLE supplychain_member ALTER COLUMN endpoints SET DEFAULT '{}';

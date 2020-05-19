@@ -65,21 +65,21 @@ limitations under the License.
 <script lang="ts">
 import { Vue, Prop, Component } from 'vue-property-decorator';
 import * as moment from 'moment';
-import { GameroomProposal, Gameroom } from '../store/models';
-import gamerooms from '@/store/modules/gamerooms';
+import { SupplychainProposal, Supplychain } from '../store/models';
+import supplychains from '@/store/modules/supplychains';
 
 @Component
 export default class InvitationCard extends Vue {
-  @Prop() proposal!: GameroomProposal;
+  @Prop() proposal!: SupplychainProposal;
 
   acceptSubmitting = false;
   rejectSubmitting = false;
 
   get alias(): string {
-    const gameroom = this.$store.getters['gamerooms/gameroomList'].find(
-      (gr: Gameroom) => gr.circuit_id === this.proposal.circuit_id);
-    if (gameroom) {
-      return gameroom.alias;
+    const supplychain = this.$store.getters['supplychains/supplychainList'].find(
+      (gr: Supplychain) => gr.circuit_id === this.proposal.circuit_id);
+    if (supplychain) {
+      return supplychain.alias;
     }
     return '';
   }
@@ -102,7 +102,7 @@ export default class InvitationCard extends Vue {
     return (key === publicKey);
   }
 
-  getSecondaryText(proposal: GameroomProposal) {
+  getSecondaryText(proposal: SupplychainProposal) {
     let secondaryText = this.fromNow(proposal.created_time);
     if (this.isSelf(proposal.requester)) {
       secondaryText += ' - Sent';

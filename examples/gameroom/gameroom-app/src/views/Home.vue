@@ -15,7 +15,7 @@ limitations under the License.
 -->
 
 <template>
-  <h1>Welcome to Gameroom</h1>
+  <h1>Welcome to Supplychain</h1>
 </template>
 
 <script lang="ts">

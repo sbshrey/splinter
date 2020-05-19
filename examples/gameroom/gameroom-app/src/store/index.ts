@@ -16,12 +16,12 @@ import Vue from 'vue';
 import Vuex from 'vuex';
 import userModule from '@/store/modules/user';
 import notificationsModule from '@/store/modules/notifications';
-import selectedGameroomModule from '@/store/modules/selectedGameroom';
+import selectedSupplychainModule from '@/store/modules/selectedSupplychain';
 import votesModule from '@/store/modules/votes';
 import gamesModule from '@/store/modules/games';
 import proposalsModule from '@/store/modules/proposals';
 import pageLoadingModule from '@/store/modules/pageLoading';
-import gameroomsModule from '@/store/modules/gamerooms';
+import supplychainsModule from '@/store/modules/supplychains';
 import nodesModule from '@/store/modules/nodes';
 
 import VuexPersistence from 'vuex-persist';
@@ -39,10 +39,10 @@ export default new Vuex.Store({
     notifications: notificationsModule,
     votes: votesModule,
     games: gamesModule,
-    selectedGameroom: selectedGameroomModule,
+    selectedSupplychain: selectedSupplychainModule,
     proposals: proposalsModule,
     pageLoading: pageLoadingModule,
-    gamerooms: gameroomsModule,
+    supplychains: supplychainsModule,
     nodes: nodesModule,
   },
   plugins: [vuexLocal.plugin],

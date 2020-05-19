@@ -40,13 +40,13 @@
 /examples/private_counter/demo_state/local_registry.yaml
 /examples/private_counter/demo_state/circuit_proposals.yaml
 
-/examples/gameroom/database/target
-/examples/gameroom/database/Cargo.lock
+/examples/supplychain/database/target
+/examples/supplychain/database/Cargo.lock
 
-/examples/gameroom/daemon/target
-/examples/gameroom/daemon/Cargo.lock
+/examples/supplychain/daemon/target
+/examples/supplychain/daemon/Cargo.lock
 
-/examples/gameroom/gameroom-app/src/compiled_protos.json
+/examples/supplychain/supplychain-app/src/compiled_protos.json
 
 /tests/Cargo.lock
 /tests/target

@@ -78,53 +78,53 @@ services:
     image: ${REGISTRY}${NAMESPACE}private_counter_service:${ISOLATION_ID}
     container_name: private_counter_service
 
-# ---==== gameroom components ====---
+# ---==== supplychain components ====---
 
-  gameroomd:
+  supplychaind:
     build:
       context: .
-      dockerfile: examples/gameroom/daemon/Dockerfile-installed-${DISTRO}
+      dockerfile: examples/supplychain/daemon/Dockerfile-installed-${DISTRO}
       args:
       - CARGO_ARGS=${CARGO_ARGS}
       - REPO_VERSION=${REPO_VERSION}
-    image: ${REGISTRY}${NAMESPACE}gameroomd:${ISOLATION_ID}
-    container_name: gameroomd
+    image: ${REGISTRY}${NAMESPACE}supplychaind:${ISOLATION_ID}
+    container_name: supplychaind
 
-  gameroom-app-acme:
+  supplychain-app-acme:
     build:
       context: .
-      dockerfile: examples/gameroom/gameroom-app/Dockerfile-installed
+      dockerfile: examples/supplychain/supplychain-app/Dockerfile-installed
       args:
         - VUE_APP_BRAND=acme
         - REPO_VERSION=${REPO_VERSION}
-    image: ${REGISTRY}${NAMESPACE}gameroom-app-acme:${ISOLATION_ID}
-    container_name: gameroom-app-acme
+    image: ${REGISTRY}${NAMESPACE}supplychain-app-acme:${ISOLATION_ID}
+    container_name: supplychain-app-acme
 
-  gameroom-app-bubba:
+  supplychain-app-bubba:
     build:
       context: .
-      dockerfile: examples/gameroom/gameroom-app/Dockerfile-installed
+      dockerfile: examples/supplychain/supplychain-app/Dockerfile-installed
       args:
         - VUE_APP_BRAND=bubba
         - REPO_VERSION=${REPO_VERSION}
-    image: ${REGISTRY}${NAMESPACE}gameroom-app-bubba:${ISOLATION_ID}
-    container_name: gameroom-app-bubba
+    image: ${REGISTRY}${NAMESPACE}supplychain-app-bubba:${ISOLATION_ID}
+    container_name: supplychain-app-bubba
 
-  gameroom-app:
+  supplychain-app:
     build:
       context: .
-      dockerfile: examples/gameroom/gameroom-app/Dockerfile-installed
+      dockerfile: examples/supplychain/supplychain-app/Dockerfile-installed
       args:
         - VUE_APP_BRAND=generic
         - REPO_VERSION=${REPO_VERSION}
-    image: ${REGISTRY}${NAMESPACE}gameroom-app:${ISOLATION_ID}
-    container_name: gameroom-app
+    image: ${REGISTRY}${NAMESPACE}supplychain-app:${ISOLATION_ID}
+    container_name: supplychain-app
 
-  gameroom-database:
+  supplychain-database:
     build:
       context: .
-      dockerfile: examples/gameroom/database/Dockerfile-installed
+      dockerfile: examples/supplychain/database/Dockerfile-installed
       args:
       - REPO_VERSION=${REPO_VERSION}
-    image: ${REGISTRY}${NAMESPACE}gameroom-database:${ISOLATION_ID}
-    container_name: gameroom-database
+    image: ${REGISTRY}${NAMESPACE}supplychain-database:${ISOLATION_ID}
+    container_name: supplychain-database

@@ -12,23 +12,23 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::models::GameroomUser;
-use crate::schema::gameroom_user;
+use crate::models::SupplychainUser;
+use crate::schema::supplychain_user;
 
 use diesel::{
     dsl::insert_into, pg::PgConnection, prelude::*, result::Error::NotFound, QueryResult,
 };
 
-pub fn fetch_user_by_email(conn: &PgConnection, email: &str) -> QueryResult<Option<GameroomUser>> {
-    gameroom_user::table
+pub fn fetch_user_by_email(conn: &PgConnection, email: &str) -> QueryResult<Option<SupplychainUser>> {
+    supplychain_user::table
         .find(email)
-        .first::<GameroomUser>(conn)
+        .first::<SupplychainUser>(conn)
         .map(Some)
         .or_else(|err| if err == NotFound { Ok(None) } else { Err(err) })
 }
 
-pub fn insert_user(conn: &PgConnection, user: GameroomUser) -> QueryResult<()> {
-    insert_into(gameroom_user::table)
+pub fn insert_user(conn: &PgConnection, user: SupplychainUser) -> QueryResult<()> {
+    insert_into(supplychain_user::table)
         .values(&vec![user])
         .execute(conn)
         .map(|_| ())

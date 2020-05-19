@@ -35,14 +35,14 @@ items:
       spec:
         containers:
           - name: db
-            image: splintercommunity/gameroom-database:latest
+            image: splintercommunity/supplychain-database:latest
             env:
               - name: POSTGRES_USER
-                value: gameroom
+                value: supplychain
               - name: POSTGRES_PASSWORD
-                value: gameroom_example
+                value: supplychain_example
               - name: POSTGRES_DB
-                value: gameroom
+                value: supplychain
               - name: PGDATA
                 value: /var/lib/postgresql/data/pgdata
             ports:
@@ -50,8 +50,8 @@ items:
                 containerPort: 5432
 
 
-          - name: gameroom-app
-            image: splintercommunity/gameroom-app-acme:latest
+          - name: supplychain-app
+            image: splintercommunity/supplychain-app-acme:latest
             env:
               - name: VUE_APP_BRAND
                 value: acme
@@ -60,21 +60,21 @@ items:
             args:
               - -c
               - |
-                sed -i'' "s/gameroomd-\${VUE_APP_BRAND}/${HOSTNAME}/g" /usr/local/apache2/conf/httpd.conf &&
+                sed -i'' "s/supplychaind-\${VUE_APP_BRAND}/${HOSTNAME}/g" /usr/local/apache2/conf/httpd.conf &&
                 httpd-foreground
             ports:
-              - name: gameroom
+              - name: supplychain
                 containerPort: 80
 
 
-          - name: gameroomd
-            image: splintercommunity/gameroomd:latest
+          - name: supplychaind
+            image: splintercommunity/supplychaind:latest
             command:
               - bash
             args:
               - -c
               -  |
-                  until PGPASSWORD=gameroom_example psql -h $HOSTNAME -U gameroom -c '\q'; do
+                  until PGPASSWORD=supplychain_example psql -h $HOSTNAME -U supplychain -c '\q'; do
                       >&2 echo 'Database is unavailable - sleeping'
                       sleep 1
                   done &&
@@ -82,11 +82,11 @@ items:
                     >&2 echo 'splinterd is unavailable - sleeping'
                     sleep 1
                   done &&
-                  gameroom -vv database migrate --database-url postgres://gameroom:gameroom_example@$HOSTNAME:5432/gameroom &&
-                  gameroomd -vv --database-url postgres://gameroom:gameroom_example@$HOSTNAME:5432/gameroom \
+                  supplychain -vv database migrate --database-url postgres://supplychain:supplychain_example@$HOSTNAME:5432/supplychain &&
+                  supplychaind -vv --database-url postgres://supplychain:supplychain_example@$HOSTNAME:5432/supplychain \
                     -b $HOSTNAME:8000 --splinterd-url http://$HOSTNAME:8085
             ports:
-              - name: gameroomd
+              - name: supplychaind
                 containerPort: 8000
 
           - name: splinter-cli
@@ -199,14 +199,14 @@ items:
       spec:
         containers:
           - name: db
-            image: splintercommunity/gameroom-database:latest
+            image: splintercommunity/supplychain-database:latest
             env:
               - name: POSTGRES_USER
-                value: gameroom
+                value: supplychain
               - name: POSTGRES_PASSWORD
-                value: gameroom_example
+                value: supplychain_example
               - name: POSTGRES_DB
-                value: gameroom
+                value: supplychain
               - name: PGDATA
                 value: /var/lib/postgresql/data/pgdata
             ports:
@@ -214,8 +214,8 @@ items:
                 containerPort: 5432
 
 
-          - name: gameroom-app
-            image: splintercommunity/gameroom-app-bubba:latest
+          - name: supplychain-app
+            image: splintercommunity/supplychain-app-bubba:latest
             env:
               - name: VUE_APP_BRAND
                 value: bubba
@@ -224,21 +224,21 @@ items:
             args:
               - -c
               - |
-                sed -i'' "s/gameroomd-\${VUE_APP_BRAND}/${HOSTNAME}/g" /usr/local/apache2/conf/httpd.conf &&
+                sed -i'' "s/supplychaind-\${VUE_APP_BRAND}/${HOSTNAME}/g" /usr/local/apache2/conf/httpd.conf &&
                 httpd-foreground
             ports:
-              - name: gameroom
+              - name: supplychain
                 containerPort: 80
 
 
-          - name: gameroomd
-            image: splintercommunity/gameroomd:latest
+          - name: supplychaind
+            image: splintercommunity/supplychaind:latest
             command:
               - bash
             args:
               - -c
               -  |
-                  until PGPASSWORD=gameroom_example psql -h $HOSTNAME -U gameroom -c '\q'; do
+                  until PGPASSWORD=supplychain_example psql -h $HOSTNAME -U supplychain -c '\q'; do
                       >&2 echo 'Database is unavailable - sleeping'
                       sleep 1
                   done &&
@@ -246,11 +246,11 @@ items:
                     >&2 echo 'splinterd is unavailable - sleeping'
                     sleep 1
                   done &&
-                  gameroom -vv database migrate --database-url postgres://gameroom:gameroom_example@$HOSTNAME:5432/gameroom &&
-                  gameroomd -vv --database-url postgres://gameroom:gameroom_example@$HOSTNAME:5432/gameroom \
+                  supplychain -vv database migrate --database-url postgres://supplychain:supplychain_example@$HOSTNAME:5432/supplychain &&
+                  supplychaind -vv --database-url postgres://supplychain:supplychain_example@$HOSTNAME:5432/supplychain \
                     -b $HOSTNAME:8000 --splinterd-url http://$HOSTNAME:8085
             ports:
-              - name: gameroomd
+              - name: supplychaind
                 containerPort: 8000
 
           - name: splinter-cli

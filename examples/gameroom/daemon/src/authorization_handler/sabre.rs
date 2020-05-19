@@ -49,7 +49,7 @@ const XO_NAME: &str = "xo";
 const XO_VERSION: &str = "0.3.3";
 pub const XO_PREFIX: &str = "5b7349";
 
-const XO_CONTRACT_PATH: &str = "/var/lib/gameroomd/xo-tp-rust.wasm";
+const XO_CONTRACT_PATH: &str = "/var/lib/supplychaind/xo-tp-rust.wasm";
 
 /// Create and submit the Sabre transactions to setup the XO smart contract.
 pub fn setup_xo(

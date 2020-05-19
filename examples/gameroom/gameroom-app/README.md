@@ -1,4 +1,4 @@
-# gameroom-app
+# supplychain-app
 
 ## Project setup
 ```

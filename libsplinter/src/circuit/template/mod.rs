@@ -232,11 +232,11 @@ args:
       required: true
     - name: $(a:SIGNER_PUB_KEY)
       required: false
-    - name: $(a:GAMEROOM_NAME)
+    - name: $(a:SUPPLYCHAIN_NAME)
       required: true
 rules:
     set-management-type:
-        management-type: "gameroom"
+        management-type: "supplychain"
     create-services:
         service-type: 'scabbard'
         service-args:
@@ -251,7 +251,7 @@ rules:
             - key: "scabbard_admin_keys"
               value: ["$(a:ADMIN_KEYS)"]
             - key: "alias"
-              value: "$(a:GAMEROOM_NAME)" "##;
+              value: "$(a:SUPPLYCHAIN_NAME)" "##;
 
     /*
      * Verifies that Builders can be parsed from template v1 and correctly
@@ -274,7 +274,7 @@ rules:
             .set_argument_value("signer_pub_key", "signer_key")
             .expect("Error setting argument");
         template
-            .set_argument_value("gameroom_name", "my gameroom")
+            .set_argument_value("supplychain_name", "my supplychain")
             .expect("Error setting argument");
 
         let builders = template
@@ -284,7 +284,7 @@ rules:
         let circuit_create_builder = builders.create_circuit_builder();
         assert_eq!(
             circuit_create_builder.circuit_management_type(),
-            Some("gameroom".to_string())
+            Some("supplychain".to_string())
         );
 
         let metadata = String::from_utf8(
@@ -295,7 +295,7 @@ rules:
         .expect("Failed to parse metadata to string");
         assert_eq!(
             metadata,
-            "{\"scabbard_admin_keys\":[\"signer_key\"],\"alias\":\"my gameroom\"}"
+            "{\"scabbard_admin_keys\":[\"signer_key\"],\"alias\":\"my supplychain\"}"
         );
 
         let service_builders = builders.service_builders();

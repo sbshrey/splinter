@@ -18,7 +18,7 @@
 use std::{error::Error, fmt, time::SystemTime};
 
 use diesel::connection::Connection;
-use gameroom_database::{
+use supplychain_database::{
     error, helpers,
     models::{NewXoGame, XoGame},
     ConnectionPool,
@@ -60,7 +60,7 @@ impl XoStateDeltaProcessor {
         let time = SystemTime::now();
         let conn = &*self.db_pool.get()?;
         conn.transaction::<_, error::DatabaseError, _>(|| {
-            helpers::update_gameroom_service_last_event(
+            helpers::update_supplychain_service_last_event(
                 &conn,
                 &self.circuit_id,
                 &time,
@@ -90,16 +90,16 @@ impl XoStateDeltaProcessor {
                         &self.node_id,
                         &self.circuit_id,
                     );
-                    helpers::insert_gameroom_notification(&conn, &[notification])?;
-                    helpers::update_gameroom_status(&conn, &self.circuit_id, &time, "Active")?;
-                    helpers::update_gameroom_member_status(
+                    helpers::insert_supplychain_notification(&conn, &[notification])?;
+                    helpers::update_supplychain_status(&conn, &self.circuit_id, &time, "Active")?;
+                    helpers::update_supplychain_member_status(
                         &conn,
                         &self.circuit_id,
                         &time,
                         "Ready",
                         "Active",
                     )?;
-                    helpers::update_gameroom_service_status(
+                    helpers::update_supplychain_service_status(
                         &conn,
                         &self.circuit_id,
                         &time,
@@ -140,7 +140,7 @@ impl XoStateDeltaProcessor {
                             &self.node_id,
                             &self.circuit_id,
                         );
-                        helpers::insert_gameroom_notification(&conn, &[notification])?;
+                        helpers::insert_supplychain_notification(&conn, &[notification])?;
                     } else {
                         helpers::insert_xo_game(
                             &conn,
@@ -161,7 +161,7 @@ impl XoStateDeltaProcessor {
                             &self.node_id,
                             &self.circuit_id,
                         );
-                        helpers::insert_gameroom_notification(&conn, &[notification])?;
+                        helpers::insert_supplychain_notification(&conn, &[notification])?;
                     }
 
                     Ok(())

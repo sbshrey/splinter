@@ -17,7 +17,7 @@ use std::thread::sleep;
 use std::time::{Duration, Instant};
 
 use actix_web::{client::Client, dev::Body, error, http::StatusCode, web, Error, HttpResponse};
-use gameroom_database::{helpers, ConnectionPool};
+use supplychain_database::{helpers, ConnectionPool};
 use splinter::node_registry::Node;
 use splinter::protocol;
 use splinter::service::scabbard::{BatchInfo, BatchStatus};
@@ -80,7 +80,7 @@ pub async fn submit_scabbard_payload(
 ) -> Result<HttpResponse, Error> {
     let circuit_id_clone = circuit_id.clone();
     let service_id = match web::block(move || {
-        fetch_service_id_for_gameroom_service_from_db(pool, &circuit_id_clone, &node_info.identity)
+        fetch_service_id_for_supplychain_service_from_db(pool, &circuit_id_clone, &node_info.identity)
     })
     .await
     {
@@ -158,7 +158,7 @@ pub async fn submit_scabbard_payload(
                 None => "Unknown cause",
             };
             debug!(
-                        "Internal Server Error. Gameroom service responded with an error {} with message {}",
+                        "Internal Server Error. Supplychain service responded with an error {} with message {}",
                         response.status(),
                         message
                     );
@@ -205,15 +205,15 @@ pub async fn submit_scabbard_payload(
     }
 }
 
-fn fetch_service_id_for_gameroom_service_from_db(
+fn fetch_service_id_for_supplychain_service_from_db(
     pool: web::Data<ConnectionPool>,
     circuit_id: &str,
     node_id: &str,
 ) -> Result<String, RestApiResponseError> {
-    helpers::fetch_service_id_for_gameroom_service(&*pool.get()?, circuit_id, node_id)?.ok_or_else(
+    helpers::fetch_service_id_for_supplychain_service(&*pool.get()?, circuit_id, node_id)?.ok_or_else(
         || {
             RestApiResponseError::NotFound(format!(
-                "Gameroom service for circuit ID {} not found",
+                "Supplychain service for circuit ID {} not found",
                 circuit_id,
             ))
         },

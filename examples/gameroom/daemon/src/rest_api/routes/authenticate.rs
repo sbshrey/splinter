@@ -14,7 +14,7 @@
 
 use actix_web::{error, web, Error, HttpResponse};
 use bcrypt::{hash, verify};
-use gameroom_database::{helpers, models::GameroomUser, ConnectionPool};
+use supplychain_database::{helpers, models::SupplychainUser, ConnectionPool};
 use serde::{Deserialize, Serialize};
 
 use super::{ErrorResponse, SuccessResponse};
@@ -92,13 +92,13 @@ fn create_user(
             "User already exists".to_string(),
         ));
     } else {
-        let gameroom_user = GameroomUser {
+        let supplychain_user = SupplychainUser {
             public_key: new_user.public_key.to_string(),
             encrypted_private_key: new_user.encrypted_private_key.to_string(),
             email: new_user.email.to_string(),
             hashed_password: hash_password(&new_user.hashed_password)?,
         };
-        helpers::insert_user(&*pool.get()?, gameroom_user)?
+        helpers::insert_user(&*pool.get()?, supplychain_user)?
     }
     Ok(AuthResponseData {
         email: new_user.email,

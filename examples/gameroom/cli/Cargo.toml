@@ -13,14 +13,14 @@
 # limitations under the License.
 
 [package]
-name = "gameroom-cli"
+name = "supplychain-cli"
 version = "0.3.17"
 authors = ["Cargill Incorporated"]
 edition = "2018"
 license = "Apache-2.0"
 
 [[bin]]
-name = "gameroom"
+name = "supplychain"
 path = "src/main.rs"
 
 [dependencies]

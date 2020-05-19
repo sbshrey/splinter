@@ -20,9 +20,9 @@ limitations under the License.
       <sidebar-section :section="home" />
     </router-link>
     <sidebar-section
-      v-on:action="$emit('show-new-gameroom-modal')"
-      :section="gamerooms"
-      :items="gameroomList" />
+      v-on:action="$emit('show-new-supplychain-modal')"
+      :section="supplychains"
+      :items="supplychainList" />
     <router-link class="position-end" to='/dashboard/invitations'>
       <sidebar-section :section="invitations" />
     </router-link>
@@ -33,20 +33,20 @@ limitations under the License.
 import { Vue, Prop, Component } from 'vue-property-decorator';
 import { mapGetters } from 'vuex';
 import SidebarSection from '@/components/sidebar/SidebarSection.vue';
-import { Section, Gameroom } from '@/store/models';
-import gamerooms from '@/store/modules/gamerooms';
+import { Section, Supplychain } from '@/store/models';
+import supplychains from '@/store/modules/supplychains';
 
 @Component({
   components: { SidebarSection },
   computed: {
-    ...mapGetters('gamerooms', {
-      activeGamerooms: 'activeGameroomList',
+    ...mapGetters('supplychains', {
+      activeSupplychains: 'activeSupplychainList',
     }),
   },
 })
-export default class GameroomSidebar extends Vue {
+export default class SupplychainSidebar extends Vue {
   @Prop() sections!: Section[];
-  activeGamerooms!: Gameroom[];
+  activeSupplychains!: Supplychain[];
 
   homeSection = {
     name: 'Home',
@@ -58,8 +58,8 @@ export default class GameroomSidebar extends Vue {
     actionIcon: '',
   };
 
-  gameroomsSection = {
-    name: 'My Gamerooms',
+  supplychainsSection = {
+    name: 'My Supplychains',
     icon: 'games',
     active: false,
     link: '',
@@ -79,7 +79,7 @@ export default class GameroomSidebar extends Vue {
   };
 
   mounted() {
-    this.$store.dispatch('gamerooms/listGamerooms');
+    this.$store.dispatch('supplychains/listSupplychains');
   }
 
   get home() {
@@ -87,9 +87,9 @@ export default class GameroomSidebar extends Vue {
     return this.homeSection;
   }
 
-  get gamerooms() {
-    this.gameroomsSection.active = (this.$route.name === 'gamerooms');
-    return this.gameroomsSection;
+  get supplychains() {
+    this.supplychainsSection.active = (this.$route.name === 'supplychains');
+    return this.supplychainsSection;
   }
 
   get invitations() {
@@ -97,11 +97,11 @@ export default class GameroomSidebar extends Vue {
     return this.invitationsSection;
   }
 
-  get gameroomList() {
-    return this.activeGamerooms.map((gameroom: Gameroom) => {
+  get supplychainList() {
+    return this.activeSupplychains.map((supplychain: Supplychain) => {
       return {
-        id: gameroom.circuit_id,
-        name: gameroom.alias,
+        id: supplychain.circuit_id,
+        name: supplychain.alias,
       };
     });
   }

@@ -22,16 +22,16 @@ limitations under the License.
     <toast toast-type="success" :active="success" v-on:toast-action="clearSuccess">
       {{ success }}
     </toast>
-    <modal v-if="displayModal" @close="closeNewGameroomModal">
-      <h4 slot="title">New Gameroom</h4>
+    <modal v-if="displayModal" @close="closeNewSupplychainModal">
+      <h4 slot="title">New Supplychain</h4>
       <div slot="body">
-        <form class="modal-form" @submit.prevent="createGameroom">
+        <form class="modal-form" @submit.prevent="createSupplychain">
           <label class="form-label">
             <div class="multiselect-label">Other organization</div>
           </label>
           <multiselect
             class="multiselect-input"
-            v-model="newGameroom.member"
+            v-model="newSupplychain.member"
             track-by="identity"
             label="metadata"
             placeholder=""
@@ -43,16 +43,16 @@ limitations under the License.
             :options="nodeList"
             :allow-empty="false" />
           <label class="form-label">
-            Gameroom name
-            <input class="form-input" type="text" v-model="newGameroom.alias" />
+            Supplychain name
+            <input class="form-input" type="text" v-model="newSupplychain.alias" />
           </label>
           <div class="flex-container button-container">
             <button class="btn-action outline small"
                     type="reset"
-                    @click.prevent="closeNewGameroomModal">
+                    @click.prevent="closeNewSupplychainModal">
               <div class="btn-text">Cancel</div>
             </button>
-            <button class="btn-action small" type="submit" :disabled="!canSubmitNewGameroom">
+            <button class="btn-action small" type="submit" :disabled="!canSubmitNewSupplychain">
               <div v-if="submitting" class="spinner" />
               <div class="btn-text" v-else>Send</div>
             </button>
@@ -60,8 +60,8 @@ limitations under the License.
         </form>
       </div>
     </modal>
-    <gameroom-sidebar
-      v-on:show-new-gameroom-modal="showNewGameroomModal()"
+    <supplychain-sidebar
+      v-on:show-new-supplychain-modal="showNewSupplychainModal()"
       class="sidebar" />
     <div v-if="isPageLoading" class='dashboard-view'>
       <loading :message="pageLoadingMessage" />
@@ -73,22 +73,22 @@ limitations under the License.
 <script lang="ts">
 import { Vue, Component } from 'vue-property-decorator';
 import { mapGetters } from 'vuex';
-import GameroomSidebar from '@/components/sidebar/GameroomSidebar.vue';
+import SupplychainSidebar from '@/components/sidebar/SupplychainSidebar.vue';
 import Toast from '../components/Toast.vue';
 import Multiselect from 'vue-multiselect';
-import gamerooms from '@/store/modules/gamerooms';
+import supplychains from '@/store/modules/supplychains';
 import nodes from '@/store/modules/nodes';
 import { Node } from '@/store/models';
 import Modal from '@/components/Modal.vue';
 import Loading from '@/components/Loading.vue';
 
-interface NewGameroom {
+interface NewSupplychain {
   alias: string;
   member: Node | null;
 }
 
 @Component({
-  components: { Modal, Multiselect, GameroomSidebar, Toast, Loading },
+  components: { Modal, Multiselect, SupplychainSidebar, Toast, Loading },
   computed: {
     ...mapGetters('nodes', {
       nodeList: 'nodeList',
@@ -106,7 +106,7 @@ export default class Dashboard extends Vue {
   error = '';
   success = '';
 
-  newGameroom: NewGameroom = {
+  newSupplychain: NewSupplychain = {
     alias: '',
     member: null,
   };
@@ -115,10 +115,10 @@ export default class Dashboard extends Vue {
     this.$store.dispatch('nodes/listNodes');
   }
 
-  get canSubmitNewGameroom() {
+  get canSubmitNewSupplychain() {
     if (!this.submitting &&
-        this.newGameroom.alias !== '' &&
-        this.newGameroom.member !== null) {
+        this.newSupplychain.alias !== '' &&
+        this.newSupplychain.member !== null) {
       return true;
     }
     return false;
@@ -146,13 +146,13 @@ export default class Dashboard extends Vue {
     this.success = '';
   }
 
-  async createGameroom() {
-    if (this.canSubmitNewGameroom) {
+  async createSupplychain() {
+    if (this.canSubmitNewSupplychain) {
         this.submitting = true;
-        const member = this.newGameroom.member ? this.newGameroom.member.identity : '';
+        const member = this.newSupplychain.member ? this.newSupplychain.member.identity : '';
         try {
-          this.$store.dispatch('gamerooms/proposeGameroom', {
-            alias: this.newGameroom.alias,
+          this.$store.dispatch('supplychains/proposeSupplychain', {
+            alias: this.newSupplychain.alias,
             members: [member],
           });
           this.setSuccess('Your invitation has been sent!');
@@ -161,7 +161,7 @@ export default class Dashboard extends Vue {
           this.setError(e.message);
         }
         this.submitting = false;
-        this.closeNewGameroomModal();
+        this.closeNewSupplychainModal();
     }
   }
 
@@ -175,14 +175,14 @@ export default class Dashboard extends Vue {
     return `${node.metadata.organization} (${endpoints})`;
   }
 
-  showNewGameroomModal() {
+  showNewSupplychainModal() {
     this.displayModal = true;
   }
 
-  closeNewGameroomModal() {
+  closeNewSupplychainModal() {
     this.displayModal = false;
-    this.newGameroom.alias = '';
-    this.newGameroom.member = null;
+    this.newSupplychain.alias = '';
+    this.newSupplychain.member = null;
   }
 }
 </script>

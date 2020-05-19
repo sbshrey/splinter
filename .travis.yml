@@ -33,9 +33,9 @@ addons:
 
 jobs:
   include:
-    - stage: Lint Gameroom Client
+    - stage: Lint Supplychain Client
       script:
-        - docker-compose -f docker/compose/run-lint.yaml up --abort-on-container-exit lint-gameroom-client
+        - docker-compose -f docker/compose/run-lint.yaml up --abort-on-container-exit lint-supplychain-client
 
     - stage: Run Lint/Clippy on Splinter
       script:
@@ -44,21 +44,21 @@ jobs:
       script:
         - docker-compose -f docker/compose/run-lint.yaml up --abort-on-container-exit clippy-splinter
 
-    - stage: Run Splinter/Gameroom Unit Tests
+    - stage: Run Splinter/Supplychain Unit Tests
       before_script:
         - set -e
       script:
         - docker-compose -f tests/test-splinter.yaml up --abort-on-container-exit unit-test-splinter
-    - stage: Run Splinter/Gameroom Unit Tests
+    - stage: Run Splinter/Supplychain Unit Tests
       before_script:
         - set -e
       script:
-        - docker-compose -f examples/gameroom/tests/docker-compose.yaml up --abort-on-container-exit
-    - stage: Run Splinter/Gameroom Unit Tests
+        - docker-compose -f examples/supplychain/tests/docker-compose.yaml up --abort-on-container-exit
+    - stage: Run Splinter/Supplychain Unit Tests
       before_script:
         - set -e
       script:
-        - docker-compose -f examples/gameroom/tests/cypress/docker-compose.yaml up --abort-on-container-exit
+        - docker-compose -f examples/supplychain/tests/cypress/docker-compose.yaml up --abort-on-container-exit
 
     - stage: Cron only
       if: type = cron

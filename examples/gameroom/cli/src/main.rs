@@ -36,7 +36,7 @@ fn run() -> Result<(), CliError> {
     let app = App::new(env!("CARGO_PKG_NAME"))
         .version(env!("CARGO_PKG_VERSION"))
         .author("Cargill")
-        .about("Command line for Gameroom")
+        .about("Command line for Supplychain")
         .setting(AppSettings::SubcommandRequiredElseHelp)
         .arg(
             Arg::with_name("verbose")

@@ -12,21 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { GameroomNotification } from '@/store/models';
+import { SupplychainNotification } from '@/store/models';
 import { listNotifications, markRead } from '@/store/api';
 
 export interface NotificationState {
-  notifications: GameroomNotification[];
+  notifications: SupplychainNotification[];
 }
 
 const notificationState = {
-  notifications: ([] as GameroomNotification[]),
+  notifications: ([] as SupplychainNotification[]),
 };
 
 const getters = {
-  getNotifications(state: NotificationState): GameroomNotification[] {
+  getNotifications(state: NotificationState): SupplychainNotification[] {
     return state.notifications.sort(
-      (a: GameroomNotification, b: GameroomNotification) => {
+      (a: SupplychainNotification, b: SupplychainNotification) => {
         return (b.timestamp - a.timestamp);  // Newest first
       },
     );
@@ -42,11 +42,11 @@ const actions = {
   async listNotifications({ commit, rootGetters, dispatch }: any) {
     const publicKey = rootGetters['user/getPublicKey'];
     const notifications = await listNotifications(publicKey);
-    const selectedGameroom = rootGetters['selectedGameroom/getGameroom'];
-    await dispatch('gamerooms/listGamerooms', null, {root: true});
+    const selectedSupplychain = rootGetters['selectedSupplychain/getSupplychain'];
+    await dispatch('supplychains/listSupplychains', null, {root: true});
     await dispatch('proposals/listProposals', null, {root: true});
-    if (selectedGameroom.circuit_id) {
-      await dispatch('games/listGames', selectedGameroom.circuit_id, {root: true});
+    if (selectedSupplychain.circuit_id) {
+      await dispatch('games/listGames', selectedSupplychain.circuit_id, {root: true});
     }
     commit('setNotifications', notifications);
   },
@@ -59,13 +59,13 @@ const actions = {
 };
 
 const mutations = {
-  setNotifications(state: NotificationState, notifications: GameroomNotification[]) {
+  setNotifications(state: NotificationState, notifications: SupplychainNotification[]) {
     state.notifications = notifications;
   },
-  addNotification(state: NotificationState, notification: GameroomNotification) {
+  addNotification(state: NotificationState, notification: SupplychainNotification) {
     state.notifications.push(notification);
   },
-  updateNotification(state: NotificationState, update: GameroomNotification) {
+  updateNotification(state: NotificationState, update: SupplychainNotification) {
     const index = state.notifications.findIndex((notif) => notif.id === update.id);
     if (index !== -1) {
       state.notifications.splice(index, 1, update);

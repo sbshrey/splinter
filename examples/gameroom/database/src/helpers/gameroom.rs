@@ -15,157 +15,157 @@
 use std::time::SystemTime;
 
 use crate::models::{
-    ActiveGameroom, Gameroom, GameroomMember, GameroomProposal, GameroomService, NewGameroomMember,
-    NewGameroomProposal, NewGameroomService, NewProposalVoteRecord,
+    ActiveSupplychain, Supplychain, SupplychainMember, SupplychainProposal, SupplychainService, NewSupplychainMember,
+    NewSupplychainProposal, NewSupplychainService, NewProposalVoteRecord,
 };
 use crate::schema::{
-    gameroom, gameroom_member, gameroom_proposal, gameroom_service, proposal_vote_record,
+    supplychain, supplychain_member, supplychain_proposal, supplychain_service, proposal_vote_record,
 };
 use diesel::{
     dsl::insert_into, pg::PgConnection, prelude::*, result::Error::NotFound, QueryResult,
 };
 
-pub fn fetch_proposal_by_id(conn: &PgConnection, id: i64) -> QueryResult<Option<GameroomProposal>> {
-    gameroom_proposal::table
-        .filter(gameroom_proposal::id.eq(id))
-        .first::<GameroomProposal>(conn)
+pub fn fetch_proposal_by_id(conn: &PgConnection, id: i64) -> QueryResult<Option<SupplychainProposal>> {
+    supplychain_proposal::table
+        .filter(supplychain_proposal::id.eq(id))
+        .first::<SupplychainProposal>(conn)
         .map(Some)
         .or_else(|err| if err == NotFound { Ok(None) } else { Err(err) })
 }
 
-pub fn fetch_gameroom_members_by_circuit_id_and_status(
+pub fn fetch_supplychain_members_by_circuit_id_and_status(
     conn: &PgConnection,
     circuit_id: &str,
     status: &str,
-) -> QueryResult<Vec<GameroomMember>> {
-    gameroom_member::table
+) -> QueryResult<Vec<SupplychainMember>> {
+    supplychain_member::table
         .filter(
-            gameroom_member::circuit_id
+            supplychain_member::circuit_id
                 .eq(circuit_id)
-                .and(gameroom_member::status.eq(status)),
+                .and(supplychain_member::status.eq(status)),
         )
-        .load::<GameroomMember>(conn)
+        .load::<SupplychainMember>(conn)
 }
 
 pub fn list_proposals_with_paging(
     conn: &PgConnection,
     limit: i64,
     offset: i64,
-) -> QueryResult<Vec<GameroomProposal>> {
-    gameroom_proposal::table
-        .select(gameroom_proposal::all_columns)
+) -> QueryResult<Vec<SupplychainProposal>> {
+    supplychain_proposal::table
+        .select(supplychain_proposal::all_columns)
         .limit(limit)
         .offset(offset)
-        .load::<GameroomProposal>(conn)
+        .load::<SupplychainProposal>(conn)
 }
 
 pub fn get_proposal_count(conn: &PgConnection) -> QueryResult<i64> {
-    gameroom_proposal::table.count().get_result(conn)
+    supplychain_proposal::table.count().get_result(conn)
 }
 
-pub fn list_gameroom_members_with_status(
+pub fn list_supplychain_members_with_status(
     conn: &PgConnection,
     status: &str,
-) -> QueryResult<Vec<GameroomMember>> {
-    gameroom_member::table
-        .filter(gameroom_member::status.eq(status))
-        .load::<GameroomMember>(conn)
+) -> QueryResult<Vec<SupplychainMember>> {
+    supplychain_member::table
+        .filter(supplychain_member::status.eq(status))
+        .load::<SupplychainMember>(conn)
 }
 
-pub fn insert_gameroom_proposal(
+pub fn insert_supplychain_proposal(
     conn: &PgConnection,
-    proposal: NewGameroomProposal,
+    proposal: NewSupplychainProposal,
 ) -> QueryResult<()> {
-    insert_into(gameroom_proposal::table)
+    insert_into(supplychain_proposal::table)
         .values(&vec![proposal])
         .execute(conn)
         .map(|_| ())
 }
 
-pub fn insert_gameroom(conn: &PgConnection, gameroom: Gameroom) -> QueryResult<()> {
-    insert_into(gameroom::table)
-        .values(&vec![gameroom])
+pub fn insert_supplychain(conn: &PgConnection, supplychain: Supplychain) -> QueryResult<()> {
+    insert_into(supplychain::table)
+        .values(&vec![supplychain])
         .execute(conn)
         .map(|_| ())
 }
 
-pub fn update_gameroom_proposal_status(
+pub fn update_supplychain_proposal_status(
     conn: &PgConnection,
     proposal_id: i64,
     updated_time: &SystemTime,
     status: &str,
 ) -> QueryResult<()> {
-    diesel::update(gameroom_proposal::table.find(proposal_id))
+    diesel::update(supplychain_proposal::table.find(proposal_id))
         .set((
-            gameroom_proposal::updated_time.eq(updated_time),
-            gameroom_proposal::status.eq(status),
+            supplychain_proposal::updated_time.eq(updated_time),
+            supplychain_proposal::status.eq(status),
         ))
         .execute(conn)
         .map(|_| ())
 }
 
-pub fn gameroom_service_is_active(conn: &PgConnection, circuit_id: &str) -> QueryResult<bool> {
-    gameroom_service::table
+pub fn supplychain_service_is_active(conn: &PgConnection, circuit_id: &str) -> QueryResult<bool> {
+    supplychain_service::table
         .filter(
-            gameroom_service::circuit_id
+            supplychain_service::circuit_id
                 .eq(circuit_id)
-                .and(gameroom_service::status.eq("Active")),
+                .and(supplychain_service::status.eq("Active")),
         )
-        .first::<GameroomService>(conn)
+        .first::<SupplychainService>(conn)
         .map(|_| true)
         .or_else(|err| if err == NotFound { Ok(false) } else { Err(err) })
 }
 
 pub fn get_last_updated_proposal_time(conn: &PgConnection) -> QueryResult<Option<SystemTime>> {
-    gameroom_proposal::table
-        .select(gameroom_proposal::updated_time)
-        .order_by(gameroom_proposal::updated_time.desc())
+    supplychain_proposal::table
+        .select(supplychain_proposal::updated_time)
+        .order_by(supplychain_proposal::updated_time.desc())
         .first(conn)
         .map(Some)
         .or_else(|err| if err == NotFound { Ok(None) } else { Err(err) })
 }
 
-pub fn fetch_active_gamerooms(
+pub fn fetch_active_supplychains(
     conn: &PgConnection,
     node_id: &str,
-) -> QueryResult<Vec<ActiveGameroom>> {
-    gameroom_service::table
+) -> QueryResult<Vec<ActiveSupplychain>> {
+    supplychain_service::table
         .inner_join(
-            gameroom_proposal::table
-                .on(gameroom_service::circuit_id.eq(gameroom_proposal::circuit_id)),
+            supplychain_proposal::table
+                .on(supplychain_service::circuit_id.eq(supplychain_proposal::circuit_id)),
         )
         .select((
-            gameroom_service::circuit_id,
-            gameroom_service::service_id,
-            gameroom_service::status,
-            gameroom_service::last_event,
-            gameroom_proposal::requester,
-            gameroom_proposal::requester_node_id,
+            supplychain_service::circuit_id,
+            supplychain_service::service_id,
+            supplychain_service::status,
+            supplychain_service::last_event,
+            supplychain_proposal::requester,
+            supplychain_proposal::requester_node_id,
         ))
         .filter(
-            gameroom_service::status
+            supplychain_service::status
                 .eq("Active")
-                .and(gameroom_service::allowed_nodes.contains(vec![node_id])),
+                .and(supplychain_service::allowed_nodes.contains(vec![node_id])),
         )
         .load(conn)
 }
 
-pub fn update_gameroom_status(
+pub fn update_supplychain_status(
     conn: &PgConnection,
     circuit_id: &str,
     updated_time: &SystemTime,
     status: &str,
 ) -> QueryResult<()> {
-    diesel::update(gameroom::table.find(circuit_id))
+    diesel::update(supplychain::table.find(circuit_id))
         .set((
-            gameroom::updated_time.eq(updated_time),
-            gameroom::status.eq(status),
+            supplychain::updated_time.eq(updated_time),
+            supplychain::status.eq(status),
         ))
         .execute(conn)
         .map(|_| ())
 }
 
-pub fn update_gameroom_member_status(
+pub fn update_supplychain_member_status(
     conn: &PgConnection,
     circuit_id: &str,
     updated_time: &SystemTime,
@@ -173,21 +173,21 @@ pub fn update_gameroom_member_status(
     new_status: &str,
 ) -> QueryResult<()> {
     diesel::update(
-        gameroom_member::table.filter(
-            gameroom_member::circuit_id
+        supplychain_member::table.filter(
+            supplychain_member::circuit_id
                 .eq(circuit_id)
-                .and(gameroom_member::status.eq(old_status)),
+                .and(supplychain_member::status.eq(old_status)),
         ),
     )
     .set((
-        gameroom_member::updated_time.eq(updated_time),
-        gameroom_member::status.eq(new_status),
+        supplychain_member::updated_time.eq(updated_time),
+        supplychain_member::status.eq(new_status),
     ))
     .execute(conn)
     .map(|_| ())
 }
 
-pub fn update_gameroom_service_status(
+pub fn update_supplychain_service_status(
     conn: &PgConnection,
     circuit_id: &str,
     updated_time: &SystemTime,
@@ -195,30 +195,30 @@ pub fn update_gameroom_service_status(
     new_status: &str,
 ) -> QueryResult<()> {
     diesel::update(
-        gameroom_service::table.filter(
-            gameroom_service::circuit_id
+        supplychain_service::table.filter(
+            supplychain_service::circuit_id
                 .eq(circuit_id)
-                .and(gameroom_service::status.eq(old_status)),
+                .and(supplychain_service::status.eq(old_status)),
         ),
     )
     .set((
-        gameroom_service::updated_time.eq(updated_time),
-        gameroom_service::status.eq(new_status),
+        supplychain_service::updated_time.eq(updated_time),
+        supplychain_service::status.eq(new_status),
     ))
     .execute(conn)
     .map(|_| ())
 }
 
-pub fn update_gameroom_service_last_event(
+pub fn update_supplychain_service_last_event(
     conn: &PgConnection,
     circuit_id: &str,
     updated_time: &SystemTime,
     event_id: &str,
 ) -> QueryResult<()> {
-    diesel::update(gameroom_service::table.filter(gameroom_service::circuit_id.eq(circuit_id)))
+    diesel::update(supplychain_service::table.filter(supplychain_service::circuit_id.eq(circuit_id)))
         .set((
-            gameroom_service::updated_time.eq(updated_time),
-            gameroom_service::last_event.eq(event_id),
+            supplychain_service::updated_time.eq(updated_time),
+            supplychain_service::last_event.eq(event_id),
         ))
         .execute(conn)
         .map(|_| ())
@@ -234,101 +234,101 @@ pub fn insert_proposal_vote_record(
         .map(|_| ())
 }
 
-pub fn insert_gameroom_services(
+pub fn insert_supplychain_services(
     conn: &PgConnection,
-    gameroom_services: &[NewGameroomService],
+    supplychain_services: &[NewSupplychainService],
 ) -> QueryResult<()> {
-    insert_into(gameroom_service::table)
-        .values(gameroom_services)
+    insert_into(supplychain_service::table)
+        .values(supplychain_services)
         .execute(conn)
         .map(|_| ())
 }
 
-pub fn insert_gameroom_members(
+pub fn insert_supplychain_members(
     conn: &PgConnection,
-    gameroom_members: &[NewGameroomMember],
+    supplychain_members: &[NewSupplychainMember],
 ) -> QueryResult<()> {
-    insert_into(gameroom_member::table)
-        .values(gameroom_members)
+    insert_into(supplychain_member::table)
+        .values(supplychain_members)
         .execute(conn)
         .map(|_| ())
 }
 
-pub fn fetch_gameroom_proposal_with_status(
+pub fn fetch_supplychain_proposal_with_status(
     conn: &PgConnection,
     circuit_id: &str,
     status: &str,
-) -> QueryResult<Option<GameroomProposal>> {
-    gameroom_proposal::table
-        .select(gameroom_proposal::all_columns)
+) -> QueryResult<Option<SupplychainProposal>> {
+    supplychain_proposal::table
+        .select(supplychain_proposal::all_columns)
         .filter(
-            gameroom_proposal::circuit_id
+            supplychain_proposal::circuit_id
                 .eq(circuit_id)
-                .and(gameroom_proposal::status.eq(status)),
+                .and(supplychain_proposal::status.eq(status)),
         )
         .first(conn)
         .map(Some)
         .or_else(|err| if err == NotFound { Ok(None) } else { Err(err) })
 }
 
-pub fn list_gamerooms_with_paging_and_status(
+pub fn list_supplychains_with_paging_and_status(
     conn: &PgConnection,
     status: &str,
     limit: i64,
     offset: i64,
-) -> QueryResult<Vec<Gameroom>> {
-    gameroom::table
-        .select(gameroom::all_columns)
-        .filter(gameroom::status.eq(status))
+) -> QueryResult<Vec<Supplychain>> {
+    supplychain::table
+        .select(supplychain::all_columns)
+        .filter(supplychain::status.eq(status))
         .limit(limit)
         .offset(offset)
-        .load::<Gameroom>(conn)
+        .load::<Supplychain>(conn)
 }
 
-pub fn get_gameroom_count(conn: &PgConnection) -> QueryResult<i64> {
-    gameroom::table.count().get_result(conn)
+pub fn get_supplychain_count(conn: &PgConnection) -> QueryResult<i64> {
+    supplychain::table.count().get_result(conn)
 }
 
-pub fn list_gamerooms_with_paging(
+pub fn list_supplychains_with_paging(
     conn: &PgConnection,
     limit: i64,
     offset: i64,
-) -> QueryResult<Vec<Gameroom>> {
-    gameroom::table
-        .select(gameroom::all_columns)
+) -> QueryResult<Vec<Supplychain>> {
+    supplychain::table
+        .select(supplychain::all_columns)
         .limit(limit)
         .offset(offset)
-        .load::<Gameroom>(conn)
+        .load::<Supplychain>(conn)
 }
 
-pub fn fetch_gameroom(conn: &PgConnection, circuit_id: &str) -> QueryResult<Option<Gameroom>> {
-    gameroom::table
-        .filter(gameroom::circuit_id.eq(circuit_id))
+pub fn fetch_supplychain(conn: &PgConnection, circuit_id: &str) -> QueryResult<Option<Supplychain>> {
+    supplychain::table
+        .filter(supplychain::circuit_id.eq(circuit_id))
         .first(conn)
         .map(Some)
         .or_else(|err| if err == NotFound { Ok(None) } else { Err(err) })
 }
 
-pub fn fetch_gameroom_by_alias(conn: &PgConnection, alias: &str) -> QueryResult<Option<Gameroom>> {
-    gameroom::table
-        .filter(gameroom::alias.eq(alias))
+pub fn fetch_supplychain_by_alias(conn: &PgConnection, alias: &str) -> QueryResult<Option<Supplychain>> {
+    supplychain::table
+        .filter(supplychain::alias.eq(alias))
         .first(conn)
         .map(Some)
         .or_else(|err| if err == NotFound { Ok(None) } else { Err(err) })
 }
 
-pub fn fetch_service_id_for_gameroom_service(
+pub fn fetch_service_id_for_supplychain_service(
     conn: &PgConnection,
     circuit_id: &str,
     node_id: &str,
 ) -> QueryResult<Option<String>> {
-    gameroom_service::table
+    supplychain_service::table
         .filter(
-            gameroom_service::circuit_id
+            supplychain_service::circuit_id
                 .eq(circuit_id)
-                .and(gameroom_service::allowed_nodes.contains(vec![node_id])),
+                .and(supplychain_service::allowed_nodes.contains(vec![node_id])),
         )
-        .first::<GameroomService>(conn)
+        .first::<SupplychainService>(conn)
         .map(|service| Some(service.service_id))
         .or_else(|err| if err == NotFound { Ok(None) } else { Err(err) })
 }

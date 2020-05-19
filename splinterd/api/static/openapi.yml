@@ -196,7 +196,7 @@ paths:
           required: true
           schema:
             type: string
-          x-example: gameroom
+          x-example: supplychain
         - name: last
           description: A timestamp in milliseconds from the Unix Epoch, indicating the last received event.
           in: query
@@ -1588,7 +1588,7 @@ components:
         circuit_management_type:
           description: Circuit management type
           type: string
-          example: gameroom
+          example: supplychain
         error_reason:
           description: Error message if the registration failed
           type: string
@@ -1683,7 +1683,7 @@ components:
             $ref: '#/components/schemas/CircuitService'
         management_type:
           type: string
-          example: gameroom
+          example: supplychain
 
     CircuitService:
       type: object
@@ -1733,7 +1733,7 @@ components:
                   $ref: '#/components/schemas/ProposedCircuitService'
               management_type:
                 type: string
-                example: gameroom
+                example: supplychain
               application_metadata:
                 type: string
                 format: binary

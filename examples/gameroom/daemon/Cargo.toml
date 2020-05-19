@@ -13,20 +13,20 @@
 # limitations under the License.
 
 [package]
-name = "gameroom-daemon"
+name = "supplychain-daemon"
 version = "0.3.17"
 authors = ["Cargill Incorporated"]
 edition = "2018"
 license = "Apache-2.0"
 description = """\
-    Gameroom is an example Splinter application that allows you to set up \
-    private, multi-party circuits (called "gamerooms") and play tic tac toe \
+    Supplychain is an example Splinter application that allows you to set up \
+    private, multi-party circuits (called "supplychains") and play tic tac toe \
     with shared state, as managed by two-phase-commit consensus between the \
     participants.
 """
 
 [[bin]]
-name = "gameroomd"
+name = "supplychaind"
 path = "src/main.rs"
 
 [dependencies]
@@ -41,7 +41,7 @@ diesel = { version = "1.0.0", features = ["serde_json"] }
 flate2 = "1.0.10"
 flexi_logger = "0.14"
 futures = "0.1"
-gameroom-database = { path = "../database" }
+supplychain-database = { path = "../database" }
 hyper = "0.12"
 log = "0.4"
 openssl = "0.10"
@@ -76,17 +76,17 @@ test-node-endpoint = []
 maintainer = "The Splinter Team"
 depends = "$auto"
 assets = [
-    ["packaging/systemd/gameroomd.service", "/lib/systemd/system/gameroomd.service", "644"],
-    ["packaging/systemd/gameroomd", "/etc/default/gameroomd", "644"],
-    ["target/release/gameroomd", "/usr/bin/gameroomd", "755"],
-    ["packaging/gameroom_circuit_template.yaml", "/usr/share/splinter/circuit-templates/gameroom.yaml", "644"]
+    ["packaging/systemd/supplychaind.service", "/lib/systemd/system/supplychaind.service", "644"],
+    ["packaging/systemd/supplychaind", "/etc/default/supplychaind", "644"],
+    ["target/release/supplychaind", "/usr/bin/supplychaind", "755"],
+    ["packaging/supplychain_circuit_template.yaml", "/usr/share/splinter/circuit-templates/supplychain.yaml", "644"]
 ]
 conf-files = [
-    "/etc/default/gameroomd",
-    "/lib/systemd/system/gameroomd.service"
+    "/etc/default/supplychaind",
+    "/lib/systemd/system/supplychaind.service"
 ]
 maintainer-scripts = "packaging/ubuntu"
 extended-description = """\
-Gameroom is a demo Splinter application that allows you to set up dynamic \
-multi-party circuits (called "gamerooms") and play tic tac toe with \
+Supplychain is a demo Splinter application that allows you to set up dynamic \
+multi-party circuits (called "supplychains") and play tic tac toe with \
 shared state"""

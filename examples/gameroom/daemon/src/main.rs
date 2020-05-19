@@ -30,13 +30,13 @@ mod rest_api;
 use std::thread;
 
 use flexi_logger::{style, DeferredNow, LogSpecBuilder, Logger};
-use gameroom_database::ConnectionPool;
+use supplychain_database::ConnectionPool;
 use log::Record;
 use sawtooth_sdk::signing::create_context;
 use splinter::events::Reactor;
 
-use crate::config::{get_node, GameroomConfigBuilder};
-use crate::error::GameroomDaemonError;
+use crate::config::{get_node, SupplychainConfigBuilder};
+use crate::error::SupplychainDaemonError;
 
 const APP_NAME: &str = env!("CARGO_PKG_NAME");
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -59,15 +59,15 @@ pub fn log_format(
     )
 }
 
-fn run() -> Result<(), GameroomDaemonError> {
+fn run() -> Result<(), SupplychainDaemonError> {
     let matches = clap_app!(myapp =>
         (name: APP_NAME)
         (version: VERSION)
         (author: "Cargill Incorporated")
-        (about: "Daemon Package for Gameroom")
+        (about: "Daemon Package for Supplychain")
         (@arg verbose: -v +multiple "Log verbosely")
-        (@arg database_url: --("database-url") +takes_value "Database connection for Gameroom rest API")
-        (@arg bind: -b --bind +takes_value "connection endpoint for Gameroom rest API")
+        (@arg database_url: --("database-url") +takes_value "Database connection for Supplychain rest API")
+        (@arg bind: -b --bind +takes_value "connection endpoint for Supplychain rest API")
         (@arg splinterd_url: --("splinterd-url") +takes_value "connection endpoint to SplinterD rest API")
     )
     .get_matches();
@@ -90,12 +90,12 @@ fn run() -> Result<(), GameroomDaemonError> {
         .log_target(flexi_logger::LogTarget::StdOut)
         .start()?;
 
-    let config = GameroomConfigBuilder::default()
+    let config = SupplychainConfigBuilder::default()
         .with_cli_args(&matches)
         .build()?;
 
     let connection_pool: ConnectionPool =
-        gameroom_database::create_connection_pool(config.database_url())?;
+        supplychain_database::create_connection_pool(config.database_url())?;
 
     // Generate a public/private key pair
     let context = create_context("secp256k1")?;

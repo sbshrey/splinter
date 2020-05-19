@@ -19,16 +19,16 @@ RUN echo -e "http://nl.alpinelinux.org/alpine/v3.5/main\nhttp://nl.alpinelinux.o
 
 RUN apk update && apk add python g++ git make zeromq zeromq-dev && rm -rf /var/cache/apk/*
 WORKDIR /app
-COPY examples/gameroom/gameroom-app/package*.json ./
+COPY examples/supplychain/supplychain-app/package*.json ./
 RUN npm install
-COPY examples/gameroom/gameroom-app/ .
+COPY examples/supplychain/supplychain-app/ .
 COPY /libsplinter/protos ./protos
 ARG VUE_APP_BRAND
 RUN npm run build-${VUE_APP_BRAND}
 COPY VERSION .
 WORKDIR ./dist
 ARG REPO_VERSION
-RUN tar c -z . -f ../gameroom_ui_${VUE_APP_BRAND}_v${REPO_VERSION}.tar.gz
+RUN tar c -z . -f ../supplychain_ui_${VUE_APP_BRAND}_v${REPO_VERSION}.tar.gz
 
 # Log the commit hash
 COPY .git/ /tmp/.git/
@@ -38,21 +38,21 @@ RUN git rev-parse HEAD > /commit-hash
 # prod stage
 FROM httpd:2.4 as prod-stage
 
-COPY --from=build-stage /app/gameroom_ui_*.tar.gz /tmp
+COPY --from=build-stage /app/supplychain_ui_*.tar.gz /tmp
 COPY --from=build-stage /commit-hash /commit-hash
-RUN tar -xzvf /tmp/gameroom_ui_*.tar.gz -C /usr/local/apache2/htdocs/
+RUN tar -xzvf /tmp/supplychain_ui_*.tar.gz -C /usr/local/apache2/htdocs/
 
 RUN echo "\
 \n\
-ServerName gameroom-app\n\
+ServerName supplychain-app\n\
 AddDefaultCharset utf-8\n\
 LoadModule proxy_module modules/mod_proxy.so\n\
 LoadModule proxy_http_module modules/mod_proxy_http.so\n\
 LoadModule proxy_wstunnel_module modules/mod_proxy_wstunnel.so\n\
-ProxyPass /api http://gameroomd-\${VUE_APP_BRAND}:8000\n\
-ProxyPassReverse /api http://gameroomd-\${VUE_APP_BRAND}:8000\n\
-ProxyPass /ws ws://gameroomd-\${VUE_APP_BRAND}:8000\n\
-ProxyPassReverse /ws ws://gameroomd-\${VUE_APP_BRAND}:8000\n\
+ProxyPass /api http://supplychaind-\${VUE_APP_BRAND}:8000\n\
+ProxyPassReverse /api http://supplychaind-\${VUE_APP_BRAND}:8000\n\
+ProxyPass /ws ws://supplychaind-\${VUE_APP_BRAND}:8000\n\
+ProxyPassReverse /ws ws://supplychaind-\${VUE_APP_BRAND}:8000\n\
 \n\
 " >>/usr/local/apache2/conf/httpd.conf
 

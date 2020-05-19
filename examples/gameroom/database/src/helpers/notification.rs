@@ -14,8 +14,8 @@
 
 use std::time::SystemTime;
 
-use crate::models::{GameroomNotification, NewGameroomNotification};
-use crate::schema::gameroom_notification;
+use crate::models::{SupplychainNotification, NewSupplychainNotification};
+use crate::schema::supplychain_notification;
 use diesel::{
     dsl::insert_into, pg::PgConnection, prelude::*, result::Error::NotFound, QueryResult,
 };
@@ -23,10 +23,10 @@ use diesel::{
 pub fn fetch_notification(
     conn: &PgConnection,
     notification_id: i64,
-) -> QueryResult<Option<GameroomNotification>> {
-    gameroom_notification::table
-        .filter(gameroom_notification::id.eq(notification_id))
-        .first::<GameroomNotification>(conn)
+) -> QueryResult<Option<SupplychainNotification>> {
+    supplychain_notification::table
+        .filter(supplychain_notification::id.eq(notification_id))
+        .first::<SupplychainNotification>(conn)
         .map(Some)
         .or_else(|err| if err == NotFound { Ok(None) } else { Err(err) })
 }
@@ -35,31 +35,31 @@ pub fn list_unread_notifications_with_paging(
     conn: &PgConnection,
     limit: i64,
     offset: i64,
-) -> QueryResult<Vec<GameroomNotification>> {
-    gameroom_notification::table
-        .select(gameroom_notification::all_columns)
-        .filter(gameroom_notification::read.eq(false))
+) -> QueryResult<Vec<SupplychainNotification>> {
+    supplychain_notification::table
+        .select(supplychain_notification::all_columns)
+        .filter(supplychain_notification::read.eq(false))
         .limit(limit)
         .offset(offset)
-        .load::<GameroomNotification>(conn)
+        .load::<SupplychainNotification>(conn)
 }
 
-pub fn update_gameroom_notification(
+pub fn update_supplychain_notification(
     conn: &PgConnection,
     notification_id: i64,
-) -> QueryResult<Option<GameroomNotification>> {
-    diesel::update(gameroom_notification::table.find(notification_id))
-        .set(gameroom_notification::read.eq(true))
+) -> QueryResult<Option<SupplychainNotification>> {
+    diesel::update(supplychain_notification::table.find(notification_id))
+        .set(supplychain_notification::read.eq(true))
         .get_result(conn)
         .map(Some)
         .or_else(|err| if err == NotFound { Ok(None) } else { Err(err) })
 }
 
-pub fn insert_gameroom_notification(
+pub fn insert_supplychain_notification(
     conn: &PgConnection,
-    notifications: &[NewGameroomNotification],
+    notifications: &[NewSupplychainNotification],
 ) -> QueryResult<()> {
-    insert_into(gameroom_notification::table)
+    insert_into(supplychain_notification::table)
         .values(notifications)
         .execute(conn)
         .map(|_| ())
@@ -70,8 +70,8 @@ pub fn create_new_notification(
     requester: &str,
     requester_node_id: &str,
     target: &str,
-) -> NewGameroomNotification {
-    NewGameroomNotification {
+) -> NewSupplychainNotification {
+    NewSupplychainNotification {
         notification_type: notification_type.to_string(),
         requester: requester.to_string(),
         requester_node_id: requester_node_id.to_string(),
@@ -82,8 +82,8 @@ pub fn create_new_notification(
 }
 
 pub fn get_unread_notification_count(conn: &PgConnection) -> QueryResult<i64> {
-    gameroom_notification::table
-        .filter(gameroom_notification::read.eq(false))
+    supplychain_notification::table
+        .filter(supplychain_notification::read.eq(false))
         .count()
         .get_result(conn)
 }
@@ -92,12 +92,12 @@ pub fn fetch_notifications_by_time(
     conn: &PgConnection,
     current_check_time: SystemTime,
     previous_check_time: SystemTime,
-) -> QueryResult<Vec<GameroomNotification>> {
-    gameroom_notification::table
+) -> QueryResult<Vec<SupplychainNotification>> {
+    supplychain_notification::table
         .filter(
-            gameroom_notification::created_time
+            supplychain_notification::created_time
                 .ge(previous_check_time)
-                .and(gameroom_notification::created_time.le(current_check_time)),
+                .and(supplychain_notification::created_time.le(current_check_time)),
         )
-        .load::<GameroomNotification>(conn)
+        .load::<SupplychainNotification>(conn)
 }

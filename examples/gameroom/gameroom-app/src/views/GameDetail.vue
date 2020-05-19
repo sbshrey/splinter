@@ -18,7 +18,7 @@ limitations under the License.
   <div class="data-container">
     <div v-if="game.circuit_id" class="header">
       <h2 class="title">{{ game.game_name }}</h2>
-      <router-link class="close" :to="gameroomLink">
+      <router-link class="close" :to="supplychainLink">
         <i class="icon material-icons-round">close</i>
       </router-link>
     </div>
@@ -35,7 +35,7 @@ import { Vue, Component } from 'vue-property-decorator';
 import { Game } from '@/store/models';
 import XOBoard from '@/components/xo/XOBoard.vue';
 import GameInfoPanel, { GameInfo, GameStatus } from '@/components/GameInfoPanel.vue';
-import games from '@/store/modules/gamerooms';
+import games from '@/store/modules/supplychains';
 import store from '@/store';
 
 
@@ -45,17 +45,17 @@ import store from '@/store';
 export default class GameDetail extends Vue {
 
   beforeRouteEnter(to: any, from: any , next: any) {
-    setSelectedGameroom(to, next);
+    setSelectedSupplychain(to, next);
     listGames(to, next);
   }
 
   beforeRouteUpdate(to: any, from: any , next: any) {
-    setSelectedGameroom(to, next);
+    setSelectedSupplychain(to, next);
     listGames(to, next);
   }
 
-  get gameroomLink() {
-    return `/dashboard/gamerooms/${this.$route.params.id}`;
+  get supplychainLink() {
+    return `/dashboard/supplychains/${this.$route.params.id}`;
   }
 
   get game() {
@@ -88,8 +88,8 @@ export default class GameDetail extends Vue {
   }
 }
 
-function setSelectedGameroom(to: any, next: any) {
-  store.dispatch('selectedGameroom/updateSelectedGameroom', to.params.id).catch((e) => {
+function setSelectedSupplychain(to: any, next: any) {
+  store.dispatch('selectedSupplychain/updateSelectedSupplychain', to.params.id).catch((e) => {
       next({ name: 'not-found' });
   });
 }

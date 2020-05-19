@@ -19,9 +19,9 @@ crates := '\
     client \
     services/scabbard \
     services/health \
-    examples/gameroom/database \
-    examples/gameroom/daemon \
-    examples/gameroom/cli \
+    examples/supplychain/database \
+    examples/supplychain/daemon \
+    examples/supplychain/cli \
     examples/private_counter/cli \
     examples/private_counter/service \
     examples/private_xo \

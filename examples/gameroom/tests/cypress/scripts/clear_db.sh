@@ -12,6 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-PGPASSWORD=gameroom_test psql -h db-cypress-test -U gameroom_test -c \
-    'TRUNCATE gameroom_user, gameroom, gameroom_proposal, proposal_vote_record,
-      gameroom_member, gameroom_service, gameroom_notification, xo_games';
+PGPASSWORD=supplychain_test psql -h db-cypress-test -U supplychain_test -c \
+    'TRUNCATE supplychain_user, supplychain, supplychain_proposal, proposal_vote_record,
+      supplychain_member, supplychain_service, supplychain_notification, xo_games';

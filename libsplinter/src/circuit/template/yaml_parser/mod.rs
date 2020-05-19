@@ -87,7 +87,7 @@ args:
       default: $(a:SIGNER_PUB_KEY)
 rules:
     set-management-type:
-        management-type: "gameroom"
+        management-type: "supplychain"
     create-services:
         service-type: 'scabbard'
         service-args:
@@ -102,7 +102,7 @@ rules:
             - key: "scabbard_admin_keys"
               value: [$(cs:ADMIN)]
             - key: "alias"
-              value: "$(sm:gameroom_name)" "##;
+              value: "$(sm:supplychain_name)" "##;
 
     /*
      * Verifies load_template correctly loads a template version 1
@@ -149,7 +149,7 @@ rules:
                     .rules()
                     .set_management_type()
                     .expect("Management type was not deserialize correctly");
-                assert_eq!(management_type.management_type(), "gameroom");
+                assert_eq!(management_type.management_type(), "supplychain");
 
                 let metadata = template
                     .rules()
@@ -164,7 +164,7 @@ rules:
                             && metadata.value() == &Value::List(vec!["$(cs:ADMIN)".to_string()])));
                         assert!(metadata.iter().any(|metadata| metadata.key() == "alias"
                             && metadata.value()
-                                == &Value::Single("$(sm:gameroom_name)".to_string())));
+                                == &Value::Single("$(sm:supplychain_name)".to_string())));
                     }
                 }
             }

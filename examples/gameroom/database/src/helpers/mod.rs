@@ -12,27 +12,27 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-mod gameroom;
-mod gameroom_user;
+mod supplychain;
+mod supplychain_user;
 mod notification;
 mod xo_games;
 
-pub use gameroom::{
-    fetch_active_gamerooms, fetch_gameroom, fetch_gameroom_by_alias,
-    fetch_gameroom_members_by_circuit_id_and_status, fetch_gameroom_proposal_with_status,
-    fetch_proposal_by_id, fetch_service_id_for_gameroom_service, gameroom_service_is_active,
-    get_gameroom_count, get_last_updated_proposal_time, get_proposal_count, insert_gameroom,
-    insert_gameroom_members, insert_gameroom_proposal, insert_gameroom_services,
-    insert_proposal_vote_record, list_gameroom_members_with_status, list_gamerooms_with_paging,
-    list_gamerooms_with_paging_and_status, list_proposals_with_paging,
-    update_gameroom_member_status, update_gameroom_proposal_status,
-    update_gameroom_service_last_event, update_gameroom_service_status, update_gameroom_status,
+pub use supplychain::{
+    fetch_active_supplychains, fetch_supplychain, fetch_supplychain_by_alias,
+    fetch_supplychain_members_by_circuit_id_and_status, fetch_supplychain_proposal_with_status,
+    fetch_proposal_by_id, fetch_service_id_for_supplychain_service, supplychain_service_is_active,
+    get_supplychain_count, get_last_updated_proposal_time, get_proposal_count, insert_supplychain,
+    insert_supplychain_members, insert_supplychain_proposal, insert_supplychain_services,
+    insert_proposal_vote_record, list_supplychain_members_with_status, list_supplychains_with_paging,
+    list_supplychains_with_paging_and_status, list_proposals_with_paging,
+    update_supplychain_member_status, update_supplychain_proposal_status,
+    update_supplychain_service_last_event, update_supplychain_service_status, update_supplychain_status,
 };
-pub use gameroom_user::{fetch_user_by_email, insert_user};
+pub use supplychain_user::{fetch_user_by_email, insert_user};
 pub use notification::{
     create_new_notification, fetch_notification, fetch_notifications_by_time,
-    get_unread_notification_count, insert_gameroom_notification,
-    list_unread_notifications_with_paging, update_gameroom_notification,
+    get_unread_notification_count, insert_supplychain_notification,
+    list_unread_notifications_with_paging, update_supplychain_notification,
 };
 pub use xo_games::{
     fetch_xo_game, get_xo_game_count, insert_xo_game, list_xo_games, update_xo_game,

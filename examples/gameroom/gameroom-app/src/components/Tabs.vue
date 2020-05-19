@@ -21,7 +21,7 @@ limitations under the License.
           v-on:select-tab="selectTab(1)"
           v-bind:is-active="currentTab == 1"
           class="btn-tab"
-          text="Gamerooms"
+          text="Supplychains"
           icon="games"/>
         <tab-button
           v-on:select-tab="selectTab(2)"
@@ -32,16 +32,16 @@ limitations under the License.
     </div>
     <div class="tab-container">
       <div class="tab-title">
-        <h2 v-if="currentTab == 1">Gamerooms</h2>
+        <h2 v-if="currentTab == 1">Supplychains</h2>
         <h2 v-if="currentTab == 2">Invites</h2>
-        <button class="btn-action" @click="$emit('show-new-gameroom-modal')">
-            <div class="btn-text">New Gameroom</div>
+        <button class="btn-action" @click="$emit('show-new-supplychain-modal')">
+            <div class="btn-text">New Supplychain</div>
         </button>
       </div>
       <div class="tab">
-        <gameroom-table v-if="currentTab == 1">
-          No gamerooms available
-        </gameroom-table>
+        <supplychain-table v-if="currentTab == 1">
+          No supplychains available
+        </supplychain-table>
         <proposal-table v-if="currentTab == 2">
           No invites
         </proposal-table>
@@ -54,10 +54,10 @@ limitations under the License.
 import { Vue, Component } from 'vue-property-decorator';
 import TabButton from '@/components/TabButton.vue';
 import ProposalTable from '@/components/ProposalTable.vue';
-import GameroomTable from '@/components/GameroomTable.vue';
+import SupplychainTable from '@/components/SupplychainTable.vue';
 
 @Component({
-  components: { GameroomTable, ProposalTable, TabButton },
+  components: { SupplychainTable, ProposalTable, TabButton },
 })
 export default class Tabs extends Vue {
   currentTab = 1;

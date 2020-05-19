@@ -118,8 +118,8 @@ README in each directory explains how to run the demo.
 - [Private XO](examples/private_xo/): Two services talk over a circuit to play
   a private game of tic tac toe (XO).
 
-- [Gameroom](examples/gameroom/): Web application that allows you to set up a
-  dynamic multi-party circuit (called a "gameroom") and play tic tac toe (XO).
+- [Supplychain](examples/supplychain/): Web application that allows you to set up a
+  dynamic multi-party circuit (called a "supplychain") and play tic tac toe (XO).
 
 ## License
 

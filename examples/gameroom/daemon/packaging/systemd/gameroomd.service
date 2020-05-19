@@ -13,14 +13,14 @@
 # limitations under the License.
 
 [Unit]
-Description=Gameroom Daemon
+Description=Supplychain Daemon
 After=network.target
 
 [Service]
-User=gameroomd
-Group=gameroomd
-EnvironmentFile=-/etc/default/gameroomd
-ExecStart=/usr/bin/gameroomd $GAMEROOMD_ARGS
+User=supplychaind
+Group=supplychaind
+EnvironmentFile=-/etc/default/supplychaind
+ExecStart=/usr/bin/supplychaind $SUPPLYCHAIND_ARGS
 Restart=on-failure
 RestartSec=300
 

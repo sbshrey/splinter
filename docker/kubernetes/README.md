@@ -1,7 +1,7 @@
-# Running the Gameroom Demo in Kubernetes
+# Running the Supplychain Demo in Kubernetes
 
 This procedure explains how to run the
-[Gameroom demo](https://github.com/Cargill/splinter/tree/master/examples/gameroom)
+[Supplychain demo](https://github.com/Cargill/splinter/tree/master/examples/supplychain)
 with
 [Kubernetes](https://kubernetes.io/docs/concepts/overview/what-is-kubernetes/).
 This environment uses [Minikube](https://kubernetes.io/docs/setup/minikube/) to
@@ -14,7 +14,7 @@ This procedure walks you through:
 
 * Generating keys and updating the node registry
 * Creating a ConfigMap for the node registry
-* Starting Gameroom
+* Starting Supplychain
 * Creating users and logging in to the web app
 * Playing tic-tac-toe
 
@@ -24,18 +24,18 @@ You'll need Minikube installed and started and kubectl to complete this
 walkthrough. For installation instructions, see the
 [Minikube installation documentation](https://kubernetes.io/docs/tasks/tools/install-minikube/).
 
-## Deploy Gameroom
+## Deploy Supplychain
 
 ### Step 1: Generate keys
 
 1. Run a Job to generate user keys.
 
-   `$ kubectl apply -f https://raw.githubusercontent.com/Cargill/splinter/master/docker/kubernetes/create-gameroom-keys.yaml`
+   `$ kubectl apply -f https://raw.githubusercontent.com/Cargill/splinter/master/docker/kubernetes/create-supplychain-keys.yaml`
 
 1. View the output from the Job.
 
   ```
-  $ jobpod=$(kubectl get pods --selector=job-name=gameroom-keys --output=jsonpath='{.items[*].metadata.name}')
+  $ jobpod=$(kubectl get pods --selector=job-name=supplychain-keys --output=jsonpath='{.items[*].metadata.name}')
   $ kubectl logs $jobpod
   ```
 
@@ -137,7 +137,7 @@ walkthrough. For installation instructions, see the
     Events:  <none>
     ```
 
-### Step 4: Start Gameroom
+### Step 4: Start Supplychain
 
 1. Apply the `arcade.yaml` manifest.
 
@@ -159,7 +159,7 @@ walkthrough. For installation instructions, see the
    NAME                     READY   STATUS      RESTARTS   AGE
    acme-7575f75d6d-trddh    5/5     Running     0          6m10s
    bubba-5d5f554fdb-l9nr4   5/5     Running     0          6m9s
-   gameroom-keys-l42fz      0/1     Completed   0          56m
+   supplychain-keys-l42fz      0/1     Completed   0          56m
    ```
 
 ### Step 5: Create users and log in to the web apps
@@ -175,7 +175,7 @@ walkthrough. For installation instructions, see the
    |-----------|-----------|-------------|---------------------------|
    Opening service default/acme-http in default browser...
    ```
-   ![alt text](images/acme-1-launch.png "Acme gameroom homepage")
+   ![alt text](images/acme-1-launch.png "Acme supplychain homepage")
 
 1. In the upper left, click **Register**.
 
@@ -194,19 +194,19 @@ walkthrough. For installation instructions, see the
 
    `$ minikube service bubba-http`
 
-   ![alt text](images/bubba-1-launch.png "Bubba gameroom homepage")
+   ![alt text](images/bubba-1-launch.png "Bubba supplychain homepage")
 
    ![alt text](images/bubba-2-register.png "Bubba registration page")
 
    ![alt text](images/bubba-3-loggedin.png "Bob logged in page")
 
-### Step 6: Create a gameroom
+### Step 6: Create a supplychain
 
-1. Switch back to the Acme web app. Click the `+` next to `My Gamerooms`.
-   Select Bubba Bakery from the dropdown menu and give your new gameroom a name.
+1. Switch back to the Acme web app. Click the `+` next to `My Supplychains`.
+   Select Bubba Bakery from the dropdown menu and give your new supplychain a name.
    Then click **Send**.
 
-   ![alt text](images/acme-4-newgameroom.png "Creating a new gameroom")
+   ![alt text](images/acme-4-newsupplychain.png "Creating a new supplychain")
 
 1. After clicking Send, you'll see a green notification indicating that the
    invitation has been successfully sent.
@@ -229,13 +229,13 @@ walkthrough. For installation instructions, see the
 
    ![alt text](images/bubba-5-invitation.png "Bob's invitation")
 
-1. Click the newly created gameroom in the left sidebar to view the gameroom.
+1. Click the newly created supplychain in the left sidebar to view the supplychain.
 
-   ![alt text](images/bubba-6-gameroom.png "Bob's view of the new gameroom")
+   ![alt text](images/bubba-6-supplychain.png "Bob's view of the new supplychain")
 
 ### Step 7: Play tic-tac-toe
 
-1. Switch back to the Acme web app. Click the new gameroom in the left sidebar.
+1. Switch back to the Acme web app. Click the new supplychain in the left sidebar.
    Then click the **New Game** button to start a new game of tic-tac-toe. Enter a
    name for your game and click **Send**.
 
@@ -253,12 +253,12 @@ walkthrough. For installation instructions, see the
 
    ![alt text](images/bubba-8-takespace.png "Bob takes a space")
 
-You can continue playing this game, start new games, or create new gamerooms.
+You can continue playing this game, start new games, or create new supplychains.
 
-## Step 8: Stop the Gameroom Demo
+## Step 8: Stop the Supplychain Demo
 
 Once you're finished playing, clean up by deleting the local Minikube cluster.
-This will remove all data and state. If you want to run Gameroom again, you'll
+This will remove all data and state. If you want to run Supplychain again, you'll
 have to start at the beginning of the walkthrough.
 
 `$ minikube delete`

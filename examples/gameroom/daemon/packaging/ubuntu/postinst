@@ -12,29 +12,29 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-user="gameroomd"
-group="gameroomd"
+user="supplychaind"
+group="supplychaind"
 
 case "$1" in
     configure)
 
     # This value is present only during upgrades
     if [ -z "$2" ]; then
-        # Create gameroomd group if it doesn't exist
+        # Create supplychaind group if it doesn't exist
         if ! getent group $group >/dev/null; then
             addgroup --quiet --system $group
         fi
 
-        # Create gameroomd user if it doesn't exist
+        # Create supplychaind user if it doesn't exist
         if ! getent passwd $user >/dev/null; then
             adduser --quiet --system --ingroup $group $user
         fi
 
         # Create some required directories and make sure permissions
         # are correct
-        mkdir /var/lib/gameroomd
-        chown root:$group /var/lib/gameroomd/
-        chmod 775 /var/lib/gameroomd/
+        mkdir /var/lib/supplychaind
+        chown root:$group /var/lib/supplychaind/
+        chmod 775 /var/lib/supplychaind/
 
         if [ ! -d /usr/share/splinter/circuit-templates ]; then
           mkdir -p /usr/share/splinter/circuit-templates

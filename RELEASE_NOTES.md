@@ -210,14 +210,14 @@ because the functionality is now available by default:
   To display a man page with the `man` command, use the dashed form of the name,
   where each space is replaced by a dash. For example, `man splinter-cert`.
 
-### Gameroom
+### Supplychain
 
-* Fix a non-deterministic failure in a gameroom integration test.
+* Fix a non-deterministic failure in a supplychain integration test.
 
 * Update code to support change to multiple endpoints for each node
 
 * Add a database migration for the change from `endpoint` to `endpoints` for the
-  `gameroom_member` table.
+  `supplychain_member` table.
 
 ### Miscellaneous
 
@@ -489,7 +489,7 @@ For upgrade information, see [Upgrading to Splinter 0.3.15 from Splinter 0.3.14]
 * Add pandoc to the `splinter-dev` image.
 * Update the version of `splinter-dev` to v2 and update Dockerfiles to use `splinter-dev:v2`.
 * Experimental feature "circuit-template" (new): Include a `scabbard` template with
-  the Splinter CLI and include the `gameroom` template with the gameroom daemon.
+  the Splinter CLI and include the `supplychain` template with the supplychain daemon.
 
 ## Changes in Splinter 0.3.13
 
@@ -694,27 +694,27 @@ Splinter 0.3.12](https://github.com/Cargill/splinter-docs/blob/master/docs/upgra
 * Add rest-api feature to Cargo toml. This fixes a bug where it could not build
   if built outside of the workspace.
 
-### Gameroom:
+### Supplychain:
 * Fix games disappearing on refresh. Adds a check to ensure that games are not
-  refreshed if selectedGameroom state is empty.
+  refreshed if selectedSupplychain state is empty.
 * Remove the vuex-module-decorators dependency, which was causing issues with
   debugging and provides little benefit.
 * Implement a new component, Loading, which renders a spinner and a message
   supplied by a prop. This standardizes the approach to loading indicators
-  throughout gameroom.
+  throughout supplychain.
 * Update the vuex page loading store to store a message.
 * Trigger a loading indicator when pages are being lazy loaded or data has to be
   fetched before the page can fully load
-* Update gameroom daemon to actix 2.0.
+* Update supplychain daemon to actix 2.0.
 * Remove unnecessary Pike namespace permissions from setting up the XO contract
-  in the gameroom daemon.
+  in the supplychain daemon.
 * Use new transaction/batch building pattern enabled by sabre/sawtooth/transact
   to simplify submitting transactions to scabbard.
-* Update the Sabre version for transactions submitted by the gameroom web app to
+* Update the Sabre version for transactions submitted by the supplychain web app to
   match the Sabre version used by scabbard (v0.5).
 
-### Gameroom cli:
-* Change gameroom cli version to match the rest of the repo
+### Supplychain cli:
+* Change supplychain cli version to match the rest of the repo
 
 ### Packaging:
 * Add curl to the scabbard-cli docker image to enable fetching remote .scar
@@ -730,7 +730,7 @@ peers are not connected when the circuit proposal is submitted.
 transactions to a scabbard service.
 * New experimental endpoints have been added to get state from a scabbard
 service.
-* Information on how to run the Gameroom demo using Kubernetes is available in
+* Information on how to run the Supplychain demo using Kubernetes is available in
 [docker/kubernetes/README.md](https://github.com/Cargill/splinter/blob/master/docker/kubernetes/README.md).
 
 
@@ -754,9 +754,9 @@ PartialConfigBuilder. This is the first part of significantly refactoring how
 the Splinter daemon is configured.
 - Fix the panic caused by unwrapping a bad protobuf message
 
-### Gameroom:
+### Supplychain:
 - Add example files and instructions (in docker/kubernetes) on how to run the
-Gameroom demo using Kubernetes.
+Supplychain demo using Kubernetes.
 
 ### scabbard CLI:
 - Add the scabbard CLI with experimental subcommands that closely resemble
@@ -769,7 +769,7 @@ subcommand uses the "keygen" experimental feature.
 ### Packaging:
 - Update the libsplinter Cargo.toml file to include only experimental and
 stable in the list of features in package.metadata.docs.rs.
-- Add the Gameroom CLI to the splinter-dev docker image.
+- Add the Supplychain CLI to the splinter-dev docker image.
 - Publish Docker images built with experimental features during nightly cron
 builds.
 
@@ -785,12 +785,12 @@ builds.
   flag relaxes the requirement that the database-url option must be set.
   Currently, the database-url option is only required for the Biome subsystem.
 
-### Gameroom:
-- Add migrations for the Gameroom database to support upgrading an existing
-  gameroom daemon.
+### Supplychain:
+- Add migrations for the Supplychain database to support upgrading an existing
+  supplychain daemon.
 
-### Gameroom CLI:
-- Add gameroom CLI, which will initially be used to migrate the gameroom
+### Supplychain CLI:
+- Add supplychain CLI, which will initially be used to migrate the supplychain
   database.
 
 ## Changes in Splinter 0.3.9
@@ -836,11 +836,11 @@ builds.
 * Add support for showing proposal details to "circuit list" subcommand.
 * Change verbose and quiet flags to be global.
 
-### Gameroom
+### Supplychain
 * Add a docker-compose file that uses published images. This compose file can be
   used along with the repository in situations where building from scratch is
   not feasible.
-* Update the Gameroom README with CARGO_ARGS instructions for running with
+* Update the Supplychain README with CARGO_ARGS instructions for running with
   experimental features.
 
 ### Packaging
@@ -916,15 +916,15 @@ builds.
 ### splinterd:
 * Fix the splinterd --heartbeat argument to properly accept a value
 
-### Gameroom example:
-* Update the gameroomd app auth handler to track the timestamp of the last-seen
+### Supplychain example:
+* Update the supplychaind app auth handler to track the timestamp of the last-seen
   admin event
 * Add the timestamp for the last-seen admin event to the app auth handler’s
   subscription request for getting any catch-up events
-* Update the gameroom state-delta subscriber to track the ID of the last-seen
+* Update the supplychain state-delta subscriber to track the ID of the last-seen
   scabbard event
 * Add the ID of the last-seen scabbard event when subscribing to scabbard on
-  restart, which lets the gameroom daemon receive catch-up events
+  restart, which lets the supplychain daemon receive catch-up events
 
 ### Private XO example:
 * Replace the transact git repo dependency with a crates.io dependency
@@ -940,9 +940,9 @@ builds.
   * Added parallelization to Travis CI builds
 * Initial database structure for Biome, the libsplinter module that supports
   user management
-* New Gameroom Technical Walkthrough document that explains the Splinter
-  functionality that powers the Gameroom application; see
-  examples/gameroom/README.md for a link to the PDF
+* New Supplychain Technical Walkthrough document that explains the Splinter
+  functionality that powers the Supplychain application; see
+  examples/supplychain/README.md for a link to the PDF
 
 ### Deprecated Features:
 * The --generate-certs flag for splinterd is now deprecated. Instead, please
@@ -1036,9 +1036,9 @@ builds.
 * Refactor CanopyJS to improve clarity and extensibility
 * Implement CanopyJS user
 
-### Gameroom example:
-* Add a generic-themed Gameroom app to installed docker-compose file
-* Add functions to check for active gamerooms and resubscribe on startup
+### Supplychain example:
+* Add a generic-themed Supplychain app to installed docker-compose file
+* Add functions to check for active supplychains and resubscribe on startup
 * Add volumes for /var/lib/splinter to the docker-compose file
 * Add timestamp and thread name to log messages
 * Remove the hardcoded protocol for octet-stream submission; instead, use a
@@ -1056,7 +1056,7 @@ builds.
 
 ### Highlights:
 * Add network-level heartbeats to improve peer connectivity
-* Update Gameroom UI to use the WebSocket Secure protocol (wss) when the
+* Update Supplychain UI to use the WebSocket Secure protocol (wss) when the
   application protocol is HTTPS
 * Improve libsplinter tests
 * Add code of conduct to README
@@ -1066,16 +1066,16 @@ builds.
 * Add initial directory structure for the Canopy project, a web application
   that hosts pluggable applications and tools built on Splinter
 
-### Gameroom example:
+### Supplychain example:
 * Remove unnecessary logo files
 * Update UI to use wss when the application protocol is HTTPS. This fixes an
   issue where the application could not communicate via WebSockets if the
   application was communicating over HTTPS
 * Check for batch status after batch is submitted, then wait for batch to be
-  committed or invalidated in gameroomd
-* Remove member node’s metadata from gameroom propose request payload
-* Fetch member node information from splinterd when gameroomd receives a
-  gameroom propose request
+  committed or invalidated in supplychaind
+* Remove member node’s metadata from supplychain propose request payload
+* Fetch member node information from splinterd when supplychaind receives a
+  supplychain propose request
 
 ### libsplinter:
 * Add dockerfile for libsplinter crate generation
@@ -1102,13 +1102,13 @@ builds.
 
 ### Highlights
 * Implement a batch status endpoint for scabbard
-* Set up the Cypress integration test framework for the Gameroom UI
+* Set up the Cypress integration test framework for the Supplychain UI
 
-### Gameroom example
+### Supplychain example
 * Copy Splinter .proto files into installed client builds
 * Redirect the user to a “Not Found” page if the page does not exist
 * Set up integration tests using Cypress
-* Add XO smart contract to installed gameroomd builds
+* Add XO smart contract to installed supplychaind builds
 
 ### libsplinter
 * Reduce latency of events by replacing run_interval in EventDealerWebSocket
@@ -1126,10 +1126,10 @@ builds.
 * Add config builder with toml loading (experimental feature)
 
 ### Packaging
-* Add Dockerfile to package gameroom UI
-* Update packaging for gameroomd and splinterd so modified systemd files are
+* Add Dockerfile to package supplychain UI
+* Update packaging for supplychaind and splinterd so modified systemd files are
   not overwritten
-* Modify gameroomd and splinterd postinst scripts to add data directories
+* Modify supplychaind and splinterd postinst scripts to add data directories
 * Add plumbing to properly version deb packages
 
 ## Changes in Splinter 0.3.3
@@ -1161,28 +1161,28 @@ builds.
 * Change certain circuit fields from strings to enums
 * Remove Splinter client from CLI to decrease build time
 
-### Gameroom Example
+### Supplychain Example
 * Add ability in the UI to fetch and list XO games
-* Correct arguments used to fetch the members of an existing gameroom, allowing
-  the members to be included in the /gamerooms endpoint response
-* Add GET /keys/{public_key} endpoint to gameroomd, to fetch key information
+* Correct arguments used to fetch the members of an existing supplychain, allowing
+  the members to be included in the /supplychains endpoint response
+* Add GET /keys/{public_key} endpoint to supplychaind, to fetch key information
   associated with a public key
 * Add UI functionality to create a new XO game:
 * Add ability to calculate addresses
 * Add methods to build and sign XO transactions and batches
 * Add methods to submit XO transactions and batches
 * Add form for user to create new game
-* Add new game notification to UI and gameroomd
+* Add new game notification to UI and supplychaind
 * Add player information displayed for a game in UI
 * Implement XO game board in UI
 * Implement XO take functionality and state styling in UI
-* Add component to show game information in the Gameroom details page in the UI
+* Add component to show game information in the Supplychain details page in the UI
 * Use md5 hash of game name when creating a game, rather than URL-encoded name
   that handles special characters
 * Add player information when updating an XO game from exported data (from state
   delta export)
 * Add auto-generated protos for the UI
-* Remove the explicit caching in the Gameroom Detail view in the UI, because Vue
+* Remove the explicit caching in the Supplychain Detail view in the UI, because Vue
   does this automatically
 * Make various UI styling fixes
 * Remove unused imports to avoid cargo compilation warnings
@@ -1190,7 +1190,7 @@ builds.
 ## Changes in Splinter 0.3.2
 
 ### Highlights
-* Completed the code to propose, accept, and create a gameroom in the Gameroom
+* Completed the code to propose, accept, and create a supplychain in the Supplychain
   example application
 
 ### libsplinter
@@ -1212,15 +1212,15 @@ builds.
 ### splinter-cli
 * Remove outdated CLI commands
 
-### Gameroom Example
-* Add XoStateDeltaProcessor to Gameroom application authorization handler
-* Add route to gameroom REST API to submit batches to scabbard service
+### Supplychain Example
+* Add XoStateDeltaProcessor to Supplychain application authorization handler
+* Add route to supplychain REST API to submit batches to scabbard service
 * Set six-second timeout for toast notifications in the UI
-* Add notification in the UI for newly active gamerooms
+* Add notification in the UI for newly active supplychains
 * Enhance invitation UI and add tabs for viewing sent, received, or all
   invitations
 * Fix bug that caused read notifications to not appear as read in the UI
-* Fix bug where the Gameroom WebSocket was sending notifications to the UI
+* Fix bug where the Supplychain WebSocket was sending notifications to the UI
   every 3 seconds instead of when a new notification was added
 
 ## Changes in Splinter 0.3.1
@@ -1229,8 +1229,8 @@ builds.
 
 * Completion of circuit proposal validation, voting, and dynamic circuit creation
 * Addition of key generation and management, as well as role-based permissions
-* Continued progress towards proposing, accepting, and creating a gameroom in the
-  Gameroom example application
+* Continued progress towards proposing, accepting, and creating a supplychain in the
+  Supplychain example application
 
 ### libsplinter
 
@@ -1273,16 +1273,16 @@ builds.
 * Rename private-counter packages to private-counter-cli-<version>.deb and
   private-counter-service-<version>.deb
 
-### Gameroom Example
-* Add package metadata and license field to gameroomd Cargo.toml file
-* Add example configs, systemd files, and postinst script to gameroomd Debian
-  package; rename package to gameroom-<version>.deb
+### Supplychain Example
+* Add package metadata and license field to supplychaind Cargo.toml file
+* Add example configs, systemd files, and postinst script to supplychaind Debian
+  package; rename package to supplychain-<version>.deb
 * Implement notification retrieval using WebSocket subscription and
   notifications endpoints
-* Show pending and accepted gamerooms in the Gameroom UI
+* Show pending and accepted supplychains in the Supplychain UI
 * Add full support for signing CircuitManagementPayloads with the user's
   private key and submitting it to splinterd
-* Update gameroomd to specify itself as the scabbard admin and submit the XO
+* Update supplychaind to specify itself as the scabbard admin and submit the XO
   smart contract when the circuit is ready
 * Make various UI enhancements
 
@@ -1294,7 +1294,7 @@ builds.
   coordination
 * Continued progress towards dynamically generating circuits, including
   dynamic peering and circuit proposal validation
-* Continued progress on the Gameroom example, including UI updates and
+* Continued progress on the Supplychain example, including UI updates and
   automatic reconnection
 
 ### libsplinter
@@ -1331,7 +1331,7 @@ builds.
 * Use service IDs as peer node IDs, in order to make them compatible with
   two-phase consensus
 
-### Gameroom Example
+### Supplychain Example
 
 * Add server-side WebSocket notifications to the UI 
 * Add borders to the Acme UI
@@ -1340,15 +1340,15 @@ builds.
 * Add a circuit ID and hash to GET /proposals endpoint
 * Standardize buttons and forms in the UI
 * Improve error formatting in the UI by adding toasts and progress bar spinners
-* Change the Gameroom REST API to retrieve node data automatically on startup
-* Split the circuit_proposals table into gameroom and gameroom_proposals tables
+* Change the Supplychain REST API to retrieve node data automatically on startup
+* Split the circuit_proposals table into supplychain and supplychain_proposals tables
 * Use the [Material elevation strategy](https://material.io/design/color/dark-theme.html)
   for coloring the UI
 * Decrease the font size
 * Change the UI to redirect users who are not logged in to login page
 * Add a dashboard view
 * Add an invitation cards view
-* Add a button for creating a new gameroom to the UI
+* Add a button for creating a new supplychain to the UI
 
 ## Changes in Splinter 0.2.0
 
@@ -1384,17 +1384,17 @@ builds.
 * Add CLI parameters for configuring node registryy; the default registry type
   is "FILE"
 
-### Gameroom Example
+### Supplychain Example
 
-* Add gameroom example infrastructure, such as the gameroomd binary, docker
+* Add supplychain example infrastructure, such as the supplychaind binary, docker
   images, and compose files
 * Add Login and Register UI
-* Add New Gameroom UI
+* Add New Supplychain UI
 * Add UI themes for both parties in demo
-* Initialize Gameroom database
+* Initialize Supplychain database
 * Add circuit proposals table
-* Initialize Gameroom REST API
-* Implement Gameroom REST API authentication routes
-* Implement Gameroom REST API create gameroom endpoint
-* Implement Gameroom REST API proposals route
-* Implement /nodes endpoint in gameroomd
+* Initialize Supplychain REST API
+* Implement Supplychain REST API authentication routes
+* Implement Supplychain REST API create supplychain endpoint
+* Implement Supplychain REST API proposals route
+* Implement /nodes endpoint in supplychaind

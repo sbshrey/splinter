@@ -22,14 +22,14 @@ use actix_web::{
     client::Client, dev, error as ActixError, web, App, FromRequest, HttpResponse, HttpServer,
     Result,
 };
-use gameroom_database::ConnectionPool;
+use supplychain_database::ConnectionPool;
 use splinter::node_registry::Node;
 
 pub use error::{RestApiResponseError, RestApiServerError};
 use routes::ErrorResponse;
 
 #[derive(Clone)]
-pub struct GameroomdData {
+pub struct SupplychaindData {
     pub public_key: String,
 }
 
@@ -58,12 +58,12 @@ pub fn run(
 > {
     let bind_url = bind_url.to_owned();
     let splinterd_url = splinterd_url.to_owned();
-    let gameroomd_data = GameroomdData { public_key };
+    let supplychaind_data = SupplychaindData { public_key };
     let (tx, rx) = mpsc::channel();
     let join_handle = thread::Builder::new()
-        .name("GameroomdRestApi".into())
+        .name("SupplychaindRestApi".into())
         .spawn(move || {
-            let sys = actix::System::new("Gameroomd-Rest-API");
+            let sys = actix::System::new("Supplychaind-Rest-API");
 
             let server = HttpServer::new(move || {
                 App::new()
@@ -71,7 +71,7 @@ pub fn run(
                     .data(Client::new())
                     .data(splinterd_url.to_owned())
                     .data(node.clone())
-                    .data(gameroomd_data.clone())
+                    .data(supplychaind_data.clone())
                     .data(
                         // change path extractor configuration
                         web::Path::<String>::configure(|cfg| {
@@ -91,8 +91,8 @@ pub fn run(
                     )
                     .service(web::resource("/nodes").route(web::get().to(routes::list_nodes)))
                     .service(
-                        web::resource("/gamerooms/propose")
-                            .route(web::post().to(routes::propose_gameroom)),
+                        web::resource("/supplychains/propose")
+                            .route(web::post().to(routes::propose_supplychain)),
                     )
                     .service(
                         web::scope("/users")
@@ -138,13 +138,13 @@ pub fn run(
                             .route(web::post().to(routes::submit_signed_payload)),
                     )
                     .service(
-                        web::scope("/gamerooms")
-                            .service(web::resource("").route(web::get().to(routes::list_gamerooms)))
+                        web::scope("/supplychains")
+                            .service(web::resource("").route(web::get().to(routes::list_supplychains)))
                             .service(
                                 web::scope("/{circuit_id}")
                                     .service(
                                         web::resource("")
-                                            .route(web::get().to(routes::fetch_gameroom)),
+                                            .route(web::get().to(routes::fetch_supplychain)),
                                     )
                                     .service(
                                         web::resource("/batches")

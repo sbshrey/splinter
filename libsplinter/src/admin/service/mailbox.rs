@@ -226,7 +226,7 @@ mod tests {
             .add(make_event("circuit_one", "default"))
             .expect("Unable to add event");
         mailbox
-            .add(make_event("gameroom_one", "gameroom"))
+            .add(make_event("supplychain_one", "supplychain"))
             .expect("Unable to add event");
         mailbox
             .add(make_event("circuit_two", "default"))
@@ -235,7 +235,7 @@ mod tests {
         assert_eq!(
             vec![
                 make_event("circuit_one", "default"),
-                make_event("gameroom_one", "gameroom"),
+                make_event("supplychain_one", "supplychain"),
                 make_event("circuit_two", "default"),
             ],
             mailbox
@@ -267,7 +267,7 @@ mod tests {
             .add(make_event("circuit_one", "default"))
             .expect("Unable to add event");
         mailbox
-            .add(make_event("gameroom_one", "gameroom"))
+            .add(make_event("supplychain_one", "supplychain"))
             .expect("Unable to add event");
 
         let iter = mailbox
@@ -281,7 +281,7 @@ mod tests {
         assert_eq!(
             vec![
                 make_event("circuit_one", "default"),
-                make_event("gameroom_one", "gameroom"),
+                make_event("supplychain_one", "supplychain"),
             ],
             iter.map(|(_, evt)| evt).collect::<Vec<_>>(),
         );
@@ -297,7 +297,7 @@ mod tests {
             .add(make_event("circuit_one", "default"))
             .expect("Unable to add event");
         let (entry_time, _) = mailbox
-            .add(make_event("gameroom_one", "gameroom"))
+            .add(make_event("supplychain_one", "supplychain"))
             .expect("Unable to add event");
         mailbox
             .add(make_event("circuit_two", "default"))
@@ -305,7 +305,7 @@ mod tests {
 
         assert_eq!(
             vec![
-                make_event("gameroom_one", "gameroom"),
+                make_event("supplychain_one", "supplychain"),
                 make_event("circuit_two", "default"),
             ],
             mailbox

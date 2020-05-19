@@ -22,7 +22,7 @@ COPY .git/ /tmp/.git/
 WORKDIR /tmp
 RUN git rev-parse HEAD > /commit-hash
 
-# -------------=== gameroom db docker build ===-------------
+# -------------=== supplychain db docker build ===-------------
 
 FROM postgres:alpine
 

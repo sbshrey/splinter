@@ -21,19 +21,19 @@ embed_migrations!("../database/migrations");
 
 pub fn get_subcommand<'a, 'b>() -> App<'a, 'b> {
     SubCommand::with_name("database")
-        .about("Manage Gameroom database")
+        .about("Manage Supplychain database")
         .setting(AppSettings::SubcommandRequiredElseHelp)
         .arg(
             Arg::with_name("database-url")
                 .help("database connection URL")
                 .long("database-url")
                 .global(true)
-                .default_value("postgres://gameroom:gameroom_example@postgres:5432/gameroom")
+                .default_value("postgres://supplychain:supplychain_example@postgres:5432/supplychain")
                 .takes_value(true),
         )
         .subcommand(
             SubCommand::with_name("migrate")
-                .about("Run database migrations for the Gameroom database"),
+                .about("Run database migrations for the Supplychain database"),
         )
 }
 

@@ -56,10 +56,10 @@ RUN USER=root cargo new --bin client
 RUN USER=root cargo new --lib libsplinter
 RUN USER=root cargo new --bin splinterd
 
-# Create empty Cargo projects for gameroom
-RUN USER=root cargo new --bin examples/gameroom/cli
-RUN USER=root cargo new --bin examples/gameroom/daemon
-RUN USER=root cargo new --bin examples/gameroom/database
+# Create empty Cargo projects for supplychain
+RUN USER=root cargo new --bin examples/supplychain/cli
+RUN USER=root cargo new --bin examples/supplychain/daemon
+RUN USER=root cargo new --bin examples/supplychain/database
 
 # Create empty Cargo projects for private counter
 RUN USER=root cargo new --bin examples/private_counter/cli
@@ -88,12 +88,12 @@ COPY services/health/Cargo.toml /build/services/health/Cargo.toml
 COPY services/scabbard/Cargo.toml /build/services/scabbard/Cargo.toml
 
 # Copy over example Cargo.toml files
-COPY examples/gameroom/cli/Cargo.toml \
-     /build/examples/gameroom/cli/Cargo.toml
-COPY examples/gameroom/daemon/Cargo.toml \
-     /build/examples/gameroom/daemon/Cargo.toml
-COPY examples/gameroom/database/Cargo.toml \
-     /build/examples/gameroom/database/Cargo.toml
+COPY examples/supplychain/cli/Cargo.toml \
+     /build/examples/supplychain/cli/Cargo.toml
+COPY examples/supplychain/daemon/Cargo.toml \
+     /build/examples/supplychain/daemon/Cargo.toml
+COPY examples/supplychain/database/Cargo.toml \
+     /build/examples/supplychain/database/Cargo.toml
 COPY examples/private_counter/cli/Cargo.toml \
      /build/examples/private_counter/cli/Cargo.toml
 COPY examples/private_counter/service/Cargo.toml \
@@ -106,8 +106,8 @@ RUN find . -name 'Cargo.toml' -exec \
 
 # Clean up built files
 RUN rm \
-    target/release/gameroom-database* \
-    target/release/gameroomd* \
+    target/release/supplychain-database* \
+    target/release/supplychaind* \
     target/release/health* \
     target/release/libsplinter* \
     target/release/pcounter* \
@@ -116,8 +116,8 @@ RUN rm \
     target/release/scabbard* \
     target/release/splinter-cli* \
     target/release/splinterd* \
-    target/release/deps/gameroom_database* \
-    target/release/deps/gameroomd* \
+    target/release/deps/supplychain_database* \
+    target/release/deps/supplychaind* \
     target/release/deps/health* \
     target/release/deps/libsplinter* \
     target/release/deps/pcounter* \

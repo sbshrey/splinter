@@ -33,7 +33,7 @@ limitations under the License.
           v-for="(item, index) in items"
           :key="index"
           :class="{active: item.id === $route.params.id}"
-          :to="`/dashboard/gamerooms/${item.id}`">
+          :to="`/dashboard/supplychains/${item.id}`">
           {{ item.name }}
         </router-link>
       </div>

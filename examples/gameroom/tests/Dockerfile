@@ -27,14 +27,14 @@ ENV PATH=$PATH:/root/.cargo/bin
 
 RUN rustup update
 
-# Build gameroom cli
+# Build supplychain cli
 
-WORKDIR /project/gameroom
-COPY examples/gameroom/database ./database
-COPY examples/gameroom/cli ./cli
-WORKDIR /project/gameroom/cli
+WORKDIR /project/supplychain
+COPY examples/supplychain/database ./database
+COPY examples/supplychain/cli ./cli
+WORKDIR /project/supplychain/cli
 RUN cargo build
 
-ENV PATH=$PATH:/project/gameroom/cli/target/debug/:/project/bin/
+ENV PATH=$PATH:/project/supplychain/cli/target/debug/:/project/bin/
 
 WORKDIR /project/splinter/

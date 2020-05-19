@@ -12,38 +12,38 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { NewGameroomProposal, Gameroom } from '@/store/models';
-import { gameroomPropose, submitPayload, listGamerooms } from '@/store/api';
+import { NewSupplychainProposal, Supplychain } from '@/store/models';
+import { supplychainPropose, submitPayload, listSupplychains } from '@/store/api';
 import { signPayload } from '@/utils/crypto';
 
-export interface GameroomState {
-  gamerooms: Gameroom[];
+export interface SupplychainState {
+  supplychains: Supplychain[];
 }
 
-const gameroomState = {
-  gamerooms: ([] as Gameroom[]),
+const supplychainState = {
+  supplychains: ([] as Supplychain[]),
 };
 
 const getters = {
-  gameroomList(state: GameroomState): Gameroom[] {
-    return state.gamerooms;
+  supplychainList(state: SupplychainState): Supplychain[] {
+    return state.supplychains;
   },
 
-  activeGameroomList(state: GameroomState): Gameroom[] {
-    return state.gamerooms.filter((gameroom: Gameroom) => gameroom.status === 'Active');
+  activeSupplychainList(state: SupplychainState): Supplychain[] {
+    return state.supplychains.filter((supplychain: Supplychain) => supplychain.status === 'Active');
   },
 };
 
 const actions = {
-  async listGamerooms({ commit }: any) {
-    const gamerooms = await listGamerooms();
-    commit('setGamerooms', gamerooms);
+  async listSupplychains({ commit }: any) {
+    const supplychains = await listSupplychains();
+    commit('setSupplychains', supplychains);
   },
 
-  async proposeGameroom({ rootGetters }: any, proposal: NewGameroomProposal) {
+  async proposeSupplychain({ rootGetters }: any, proposal: NewSupplychainProposal) {
     const user = rootGetters['user/getUser'];
     try {
-      const payload = await gameroomPropose(proposal);
+      const payload = await supplychainPropose(proposal);
       const signedPayload = signPayload(payload, user.privateKey);
       const response = await submitPayload(signedPayload);
       return response;
@@ -54,15 +54,15 @@ const actions = {
 };
 
 const mutations = {
-  setGamerooms(state: GameroomState, gamerooms: Gameroom[]) {
-    state.gamerooms = gamerooms;
+  setSupplychains(state: SupplychainState, supplychains: Supplychain[]) {
+    state.supplychains = supplychains;
   },
 };
 
 export default {
   namespaced: true,
-  name: 'gamerooms',
-  state: gameroomState,
+  name: 'supplychains',
+  state: supplychainState,
   getters,
   actions,
   mutations,

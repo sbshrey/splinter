@@ -16,7 +16,7 @@ use std::collections::HashMap;
 use std::time::{Duration, SystemTime};
 
 use actix_web::{error, web, Error, HttpResponse};
-use gameroom_database::{helpers, models::XoGame, ConnectionPool};
+use supplychain_database::{helpers, models::XoGame, ConnectionPool};
 
 use crate::rest_api::RestApiResponseError;
 

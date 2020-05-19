@@ -28,13 +28,13 @@ use tokio::runtime::Runtime;
 use crate::error::{ConfigurationError, GetNodeError};
 
 #[derive(Debug)]
-pub struct GameroomConfig {
+pub struct SupplychainConfig {
     rest_api_endpoint: String,
     database_url: String,
     splinterd_url: String,
 }
 
-impl GameroomConfig {
+impl SupplychainConfig {
     pub fn rest_api_endpoint(&self) -> &str {
         &self.rest_api_endpoint
     }
@@ -47,25 +47,25 @@ impl GameroomConfig {
     }
 }
 
-pub struct GameroomConfigBuilder {
+pub struct SupplychainConfigBuilder {
     rest_api_endpoint: Option<String>,
     database_url: Option<String>,
     splinterd_url: Option<String>,
 }
 
-impl Default for GameroomConfigBuilder {
+impl Default for SupplychainConfigBuilder {
     fn default() -> Self {
         Self {
             rest_api_endpoint: Some("127.0.0.1:8000".to_owned()),
             database_url: Some(
-                "postgres://gameroom:gameroom_example@postgres:5432/gameroom".to_owned(),
+                "postgres://supplychain:supplychain_example@postgres:5432/supplychain".to_owned(),
             ),
             splinterd_url: Some("http://127.0.0.1:8080".to_owned()),
         }
     }
 }
 
-impl GameroomConfigBuilder {
+impl SupplychainConfigBuilder {
     pub fn with_cli_args(&mut self, matches: &clap::ArgMatches<'_>) -> Self {
         Self {
             rest_api_endpoint: matches
@@ -85,8 +85,8 @@ impl GameroomConfigBuilder {
         }
     }
 
-    pub fn build(mut self) -> Result<GameroomConfig, ConfigurationError> {
-        Ok(GameroomConfig {
+    pub fn build(mut self) -> Result<SupplychainConfig, ConfigurationError> {
+        Ok(SupplychainConfig {
             rest_api_endpoint: self
                 .rest_api_endpoint
                 .take()

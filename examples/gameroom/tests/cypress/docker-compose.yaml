@@ -19,39 +19,39 @@ volumes:
 
 services:
 
-  gameroom-app-test:
+  supplychain-app-test:
     build:
       context: ../../../..
-      dockerfile: examples/gameroom/gameroom-app/Dockerfile-installed
+      dockerfile: examples/supplychain/supplychain-app/Dockerfile-installed
       args:
         VUE_APP_BRAND: "acme"
         REPO_VERSION: ${REPO_VERSION}
-    image: gameroom-app-test
-    container_name: gameroom-app-test
+    image: supplychain-app-test
+    container_name: supplychain-app-test
     environment:
       - VUE_APP_BRAND=acme
 
-  gameroom-app-integration-test:
+  supplychain-app-integration-test:
     build:
       context: ../
       dockerfile: ./cypress/Dockerfile
-    image: gameroom-app-integration-test
-    container_name: gameroom-app-integration-test
+    image: supplychain-app-integration-test
+    container_name: supplychain-app-integration-test
     depends_on:
-      - gameroom-app-test
+      - supplychain-app-test
     environment:
-      - CYPRESS_baseUrl=http://gameroom-app-test
+      - CYPRESS_baseUrl=http://supplychain-app-test
     command: npx cypress run
     volumes:
       - ../cypress:/app/cypress
       - ../cypress/cypress.json:/app/cypress.json
 
-  gameroomd-acme:
-    image: gameroomd
-    container_name: gameroomd-acme
+  supplychaind-acme:
+    image: supplychaind
+    container_name: supplychaind-acme
     build:
       context: ../../../..
-      dockerfile: ./examples/gameroom/daemon/Dockerfile-installed-${DISTRO}
+      dockerfile: ./examples/supplychain/daemon/Dockerfile-installed-${DISTRO}
       args:
         - CARGO_ARGS=${CARGO_ARGS}
         - REPO_VERSION=${REPO_VERSION}
@@ -66,7 +66,7 @@ services:
     command: |
       bash -c "
         # we need to wait for the db to have started.
-        until PGPASSWORD=gameroom_test psql -h db-cypress-test -U gameroom_test -c '\q'; do
+        until PGPASSWORD=supplychain_test psql -h db-cypress-test -U supplychain_test -c '\q'; do
             >&2 echo \"Database is unavailable - sleeping\"
             sleep 1
         done
@@ -77,10 +77,10 @@ services:
            sleep 1
         done
 
-        gameroom -vv database migrate --database-url postgres://gameroom_test:gameroom_test@db-cypress-test:5432/gameroom_test
+        supplychain -vv database migrate --database-url postgres://supplychain_test:supplychain_test@db-cypress-test:5432/supplychain_test
 
-        gameroomd -vv --database-url postgres://gameroom_test:gameroom_test@db-cypress-test:5432/gameroom_test \
-          -b gameroomd-acme:8000 --splinterd-url http://splinterd-node:8085
+        supplychaind -vv --database-url postgres://supplychain_test:supplychain_test@db-cypress-test:5432/supplychain_test \
+          -b supplychaind-acme:8000 --splinterd-url http://splinterd-node:8085
       "
 
   splinterd-node:
@@ -107,19 +107,19 @@ services:
       "
 
   db-cypress-test:
-    image: gameroom-database
+    image: supplychain-database
     container_name: db-cypress-test
     build:
       context: ../../../..
-      dockerfile: ./examples/gameroom/database/Dockerfile-installed
+      dockerfile: ./examples/supplychain/database/Dockerfile-installed
     restart: always
     expose:
       - 5432
     ports:
         - "5430:5432"
     environment:
-      POSTGRES_USER: gameroom_test
-      POSTGRES_PASSWORD: gameroom_test
-      POSTGRES_DB: gameroom_test
+      POSTGRES_USER: supplychain_test
+      POSTGRES_PASSWORD: supplychain_test
+      POSTGRES_DB: supplychain_test
     volumes:
       - "../../database/tables:/docker-entrypoint-initdb.d"

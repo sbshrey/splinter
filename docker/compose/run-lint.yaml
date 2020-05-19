@@ -50,11 +50,11 @@ services:
          (cd cli && cargo clippy --features experimental -- -D warnings)
       "
 
-  lint-gameroom-client:
+  lint-supplychain-client:
     build:
-      context: ../../examples/gameroom/gameroom-app
+      context: ../../examples/supplychain/supplychain-app
       dockerfile: ../../../docker/lint-client
-    image: lint-gameroom-client:${ISOLATION_ID}
+    image: lint-supplychain-client:${ISOLATION_ID}
     volumes:
-      - ../../:/project/splinter/examples/gameroom/gameroom-app
+      - ../../:/project/splinter/examples/supplychain/supplychain-app
     command: npm run lint

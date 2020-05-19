@@ -24,11 +24,11 @@ use std::fmt::Write;
 use std::time::{Duration, SystemTime};
 
 use diesel::connection::Connection;
-use gameroom_database::{
+use supplychain_database::{
     helpers,
     models::{
-        ActiveGameroom, Gameroom, GameroomProposal, NewGameroomMember, NewGameroomProposal,
-        NewGameroomService, NewProposalVoteRecord,
+        ActiveSupplychain, Supplychain, SupplychainProposal, NewSupplychainMember, NewSupplychainProposal,
+        NewSupplychainService, NewProposalVoteRecord,
     },
     ConnectionPool,
 };
@@ -77,22 +77,22 @@ pub fn run(
     igniter: Igniter,
 ) -> Result<(), AppAuthHandlerError> {
     let pool = db_conn.get()?;
-    helpers::fetch_active_gamerooms(&pool, &node_id)?
+    helpers::fetch_active_supplychains(&pool, &node_id)?
         .iter()
-        .map(|gameroom| resubscribe(&splinterd_url, gameroom, &db_conn))
+        .map(|supplychain| resubscribe(&splinterd_url, supplychain, &db_conn))
         .try_for_each(|ws| igniter.start_ws(&ws))?;
 
     let registration_route = helpers::get_last_updated_proposal_time(&pool)?
         .map(|time| {
             format!(
-                "{}/ws/admin/register/gameroom?last={}",
+                "{}/ws/admin/register/supplychain?last={}",
                 splinterd_url,
                 time.duration_since(SystemTime::UNIX_EPOCH)
                     .map(|duration| duration.as_millis())
                     .unwrap_or(0)
             )
         })
-        .unwrap_or_else(|| format!("{}/ws/admin/register/gameroom", splinterd_url));
+        .unwrap_or_else(|| format!("{}/ws/admin/register/supplychain", splinterd_url));
 
     let mut ws = WebSocketClient::new(&registration_route, move |ctx, event| {
         if let Err(err) = process_admin_event(
@@ -154,7 +154,7 @@ fn process_admin_event(
             let requester = to_hex(&msg_proposal.requester);
             let proposal = parse_proposal(&msg_proposal, time, requester);
 
-            let gameroom = parse_gameroom(&msg_proposal.circuit, time)?;
+            let supplychain = parse_supplychain(&msg_proposal.circuit, time)?;
 
             let services = parse_splinter_services(
                 &msg_proposal.circuit_id,
@@ -173,17 +173,17 @@ fn process_admin_event(
             // insert proposal information in database tables in a single transaction
             conn.transaction::<_, _, _>(|| {
                 let notification = helpers::create_new_notification(
-                    "gameroom_proposal",
+                    "supplychain_proposal",
                     &proposal.requester,
                     &proposal.requester_node_id,
                     &proposal.circuit_id,
                 );
-                helpers::insert_gameroom_notification(conn, &[notification])?;
+                helpers::insert_supplychain_notification(conn, &[notification])?;
 
-                helpers::insert_gameroom(conn, gameroom)?;
-                helpers::insert_gameroom_proposal(conn, proposal)?;
-                helpers::insert_gameroom_services(conn, &services)?;
-                helpers::insert_gameroom_members(conn, &nodes)?;
+                helpers::insert_supplychain(conn, supplychain)?;
+                helpers::insert_supplychain_proposal(conn, proposal)?;
+                helpers::insert_supplychain_services(conn, &services)?;
+                helpers::insert_supplychain_members(conn, &nodes)?;
 
                 debug!("Inserted new proposal into database");
                 Ok(())
@@ -215,8 +215,8 @@ fn process_admin_event(
                     &vote.voter_node_id,
                     &msg_proposal.circuit_id,
                 );
-                helpers::insert_gameroom_notification(conn, &[notification])?;
-                helpers::update_gameroom_proposal_status(conn, proposal.id, &time, "Pending")?;
+                helpers::insert_supplychain_notification(conn, &[notification])?;
+                helpers::update_supplychain_proposal_status(conn, proposal.id, &time, "Pending")?;
                 helpers::insert_proposal_vote_record(conn, &[vote])?;
 
                 debug!("Inserted new vote into database");
@@ -250,17 +250,17 @@ fn process_admin_event(
                     &vote.voter_node_id,
                     &msg_proposal.circuit_id,
                 );
-                helpers::insert_gameroom_notification(conn, &[notification])?;
-                helpers::update_gameroom_proposal_status(conn, proposal.id, &time, "Accepted")?;
-                helpers::update_gameroom_status(conn, &msg_proposal.circuit_id, &time, "Accepted")?;
-                helpers::update_gameroom_member_status(
+                helpers::insert_supplychain_notification(conn, &[notification])?;
+                helpers::update_supplychain_proposal_status(conn, proposal.id, &time, "Accepted")?;
+                helpers::update_supplychain_status(conn, &msg_proposal.circuit_id, &time, "Accepted")?;
+                helpers::update_supplychain_member_status(
                     conn,
                     &msg_proposal.circuit_id,
                     &time,
                     "Pending",
                     "Accepted",
                 )?;
-                helpers::update_gameroom_service_status(
+                helpers::update_supplychain_service_status(
                     conn,
                     &msg_proposal.circuit_id,
                     &time,
@@ -301,17 +301,17 @@ fn process_admin_event(
                     &vote.voter_node_id,
                     &msg_proposal.circuit_id,
                 );
-                helpers::insert_gameroom_notification(conn, &[notification])?;
-                helpers::update_gameroom_proposal_status(conn, proposal.id, &time, "Rejected")?;
-                helpers::update_gameroom_status(conn, &msg_proposal.circuit_id, &time, "Rejected")?;
-                helpers::update_gameroom_member_status(
+                helpers::insert_supplychain_notification(conn, &[notification])?;
+                helpers::update_supplychain_proposal_status(conn, proposal.id, &time, "Rejected")?;
+                helpers::update_supplychain_status(conn, &msg_proposal.circuit_id, &time, "Rejected")?;
+                helpers::update_supplychain_member_status(
                     conn,
                     &msg_proposal.circuit_id,
                     &time,
                     "Pending",
                     "Rejected",
                 )?;
-                helpers::update_gameroom_service_status(
+                helpers::update_supplychain_service_status(
                     conn,
                     &msg_proposal.circuit_id,
                     &time,
@@ -326,9 +326,9 @@ fn process_admin_event(
         AdminServiceEvent::CircuitReady(msg_proposal) => {
             let conn = &*pool.get()?;
 
-            // If the gameroom already exists and is in the ready state, skip
+            // If the supplychain already exists and is in the ready state, skip
             // processing the event.
-            if helpers::gameroom_service_is_active(conn, &msg_proposal.circuit_id)? {
+            if helpers::supplychain_service_is_active(conn, &msg_proposal.circuit_id)? {
                 return Ok(());
             }
 
@@ -343,7 +343,7 @@ fn process_admin_event(
                 Some(id) => id,
                 None => {
                     debug!(
-                        "New gameroom does not have any services for this node: {}",
+                        "New supplychain does not have any services for this node: {}",
                         node_id
                     );
                     return Ok(());
@@ -371,16 +371,16 @@ fn process_admin_event(
                     &proposal.requester_node_id,
                     &proposal.circuit_id,
                 );
-                helpers::insert_gameroom_notification(conn, &[notification])?;
-                helpers::update_gameroom_status(conn, &msg_proposal.circuit_id, &time, "Ready")?;
-                helpers::update_gameroom_member_status(
+                helpers::insert_supplychain_notification(conn, &[notification])?;
+                helpers::update_supplychain_status(conn, &msg_proposal.circuit_id, &time, "Ready")?;
+                helpers::update_supplychain_member_status(
                     conn,
                     &msg_proposal.circuit_id,
                     &time,
                     "Accepted",
                     "Ready",
                 )?;
-                helpers::update_gameroom_service_status(
+                helpers::update_supplychain_service_status(
                     conn,
                     &msg_proposal.circuit_id,
                     &time,
@@ -478,26 +478,26 @@ fn process_admin_event(
 
 fn resubscribe(
     url: &str,
-    gameroom: &ActiveGameroom,
+    supplychain: &ActiveSupplychain,
     db_pool: &ConnectionPool,
 ) -> WebSocketClient<StateChangeEvent> {
     let processor = XoStateDeltaProcessor::new(
-        &gameroom.circuit_id,
-        &gameroom.requester_node_id,
-        &gameroom.requester,
+        &supplychain.circuit_id,
+        &supplychain.requester_node_id,
+        &supplychain.requester,
         db_pool,
     );
 
-    let query_string = if gameroom.last_event.is_empty() {
+    let query_string = if supplychain.last_event.is_empty() {
         "".into()
     } else {
-        format!("?last_seen_event={}", gameroom.last_event)
+        format!("?last_seen_event={}", supplychain.last_event)
     };
 
     let mut ws = WebSocketClient::new(
         &format!(
             "{}/scabbard/{}/{}/ws/subscribe{}",
-            url, gameroom.circuit_id, gameroom.service_id, query_string,
+            url, supplychain.circuit_id, supplychain.service_id, query_string,
         ),
         move |_, event| {
             match &processor {
@@ -541,8 +541,8 @@ fn parse_proposal(
     proposal: &CircuitProposal,
     timestamp: SystemTime,
     requester_public_key: String,
-) -> NewGameroomProposal {
-    NewGameroomProposal {
+) -> NewSupplychainProposal {
+    NewSupplychainProposal {
         proposal_type: format!("{:?}", proposal.proposal_type),
         circuit_id: proposal.circuit_id.clone(),
         circuit_hash: proposal.circuit_hash.to_string(),
@@ -554,13 +554,13 @@ fn parse_proposal(
     }
 }
 
-fn parse_gameroom(
+fn parse_supplychain(
     circuit: &CreateCircuit,
     timestamp: SystemTime,
-) -> Result<Gameroom, AppAuthHandlerError> {
+) -> Result<Supplychain, AppAuthHandlerError> {
     let application_metadata = ApplicationMetadata::from_bytes(&circuit.application_metadata)?;
 
-    Ok(Gameroom {
+    Ok(Supplychain {
         circuit_id: circuit.circuit_id.clone(),
         authorization_type: format!("{:?}", circuit.authorization_type),
         persistence: format!("{:?}", circuit.persistence),
@@ -578,10 +578,10 @@ fn parse_splinter_services(
     circuit_id: &str,
     splinter_services: &[SplinterService],
     timestamp: SystemTime,
-) -> Vec<NewGameroomService> {
+) -> Vec<NewSupplychainService> {
     splinter_services
         .iter()
-        .map(|service| NewGameroomService {
+        .map(|service| NewSupplychainService {
             circuit_id: circuit_id.to_string(),
             service_id: service.service_id.to_string(),
             service_type: service.service_type.to_string(),
@@ -609,10 +609,10 @@ fn parse_splinter_nodes(
     circuit_id: &str,
     splinter_nodes: &[SplinterNode],
     timestamp: SystemTime,
-) -> Vec<NewGameroomMember> {
+) -> Vec<NewSupplychainMember> {
     splinter_nodes
         .iter()
-        .map(|node| NewGameroomMember {
+        .map(|node| NewSupplychainMember {
             circuit_id: circuit_id.to_string(),
             node_id: node.node_id.to_string(),
             endpoints: node.endpoints.to_vec(),
@@ -626,8 +626,8 @@ fn parse_splinter_nodes(
 fn get_pending_proposal_with_circuit_id(
     pool: &ConnectionPool,
     circuit_id: &str,
-) -> Result<GameroomProposal, AppAuthHandlerError> {
-    helpers::fetch_gameroom_proposal_with_status(&*pool.get()?, &circuit_id, "Pending")?.ok_or_else(
+) -> Result<SupplychainProposal, AppAuthHandlerError> {
+    helpers::fetch_supplychain_proposal_with_status(&*pool.get()?, &circuit_id, "Pending")?.ok_or_else(
         || {
             AppAuthHandlerError::DatabaseError(format!(
                 "Could not find open proposal for circuit: {}",
@@ -652,8 +652,8 @@ mod test {
     use splinter::events::Reactor;
 
     use diesel::{dsl::insert_into, prelude::*, RunQueryDsl};
-    use gameroom_database::models::{
-        GameroomMember, GameroomNotification, GameroomService, NewGameroomNotification,
+    use supplychain_database::models::{
+        SupplychainMember, SupplychainNotification, SupplychainService, NewSupplychainNotification,
         ProposalVoteRecord,
     };
 
@@ -662,18 +662,18 @@ mod test {
         Vote, VoteRecord,
     };
 
-    static DATABASE_URL: &str = "postgres://gameroom_test:gameroom_test@db-test:5432/gameroom_test";
+    static DATABASE_URL: &str = "postgres://supplychain_test:supplychain_test@db-test:5432/supplychain_test";
 
     #[test]
-    /// Tests if when receiving an admin message to CreateProposal the gameroom_proposal
+    /// Tests if when receiving an admin message to CreateProposal the supplychain_proposal
     /// table is updated as expected
     fn test_process_proposal_submitted_message_update_proposal_table() {
         let reactor = Reactor::new();
-        let pool: ConnectionPool = gameroom_database::create_connection_pool(DATABASE_URL)
+        let pool: ConnectionPool = supplychain_database::create_connection_pool(DATABASE_URL)
             .expect("Failed to get database connection pool");
 
-        clear_gameroom_table(&pool);
-        clear_gameroom_notification_table(&pool);
+        clear_supplychain_table(&pool);
+        clear_supplychain_notification_table(&pool);
 
         let message = get_submit_proposal_msg("01234-ABCDE");
         process_admin_event(message, &pool, "", "", "", reactor.igniter())
@@ -684,7 +684,7 @@ mod test {
         assert_eq!(proposals.len(), 1);
 
         let proposal = &proposals[0];
-        let expected_proposal = get_gameroom_proposal("01234-ABCDE", SystemTime::now());
+        let expected_proposal = get_supplychain_proposal("01234-ABCDE", SystemTime::now());
 
         assert_eq!(proposal.proposal_type, expected_proposal.proposal_type);
         assert_eq!(proposal.circuit_id, expected_proposal.circuit_id);
@@ -694,91 +694,91 @@ mod test {
     }
 
     #[test]
-    /// Tests if when receiving an admin message to CreateProposal the gameroom
+    /// Tests if when receiving an admin message to CreateProposal the supplychain
     /// table is updated as expected
-    fn test_process_proposal_submitted_message_update_gameroom_table() {
+    fn test_process_proposal_submitted_message_update_supplychain_table() {
         let reactor = Reactor::new();
 
-        let pool: ConnectionPool = gameroom_database::create_connection_pool(DATABASE_URL)
+        let pool: ConnectionPool = supplychain_database::create_connection_pool(DATABASE_URL)
             .expect("Failed to get database connection pool");
 
-        clear_gameroom_table(&pool);
-        clear_gameroom_notification_table(&pool);
+        clear_supplychain_table(&pool);
+        clear_supplychain_notification_table(&pool);
 
         let message = get_submit_proposal_msg("01234-ABCDE");
         process_admin_event(message, &pool, "", "", "", reactor.igniter())
             .expect("Error processing message");
 
-        let gamerooms = query_gameroom_table(&pool);
+        let supplychains = query_supplychain_table(&pool);
 
-        assert_eq!(gamerooms.len(), 1);
+        assert_eq!(supplychains.len(), 1);
 
-        let gameroom = &gamerooms[0];
-        let expected_gameroom = get_gameroom("01234-ABCDE", SystemTime::now());
+        let supplychain = &supplychains[0];
+        let expected_supplychain = get_supplychain("01234-ABCDE", SystemTime::now());
 
-        assert_eq!(gameroom.circuit_id, expected_gameroom.circuit_id);
+        assert_eq!(supplychain.circuit_id, expected_supplychain.circuit_id);
         assert_eq!(
-            gameroom.authorization_type,
-            expected_gameroom.authorization_type
+            supplychain.authorization_type,
+            expected_supplychain.authorization_type
         );
-        assert_eq!(gameroom.persistence, expected_gameroom.persistence);
-        assert_eq!(gameroom.routes, expected_gameroom.routes);
-        assert_eq!(gameroom.durability, expected_gameroom.durability);
+        assert_eq!(supplychain.persistence, expected_supplychain.persistence);
+        assert_eq!(supplychain.routes, expected_supplychain.routes);
+        assert_eq!(supplychain.durability, expected_supplychain.durability);
         assert_eq!(
-            gameroom.circuit_management_type,
-            expected_gameroom.circuit_management_type
+            supplychain.circuit_management_type,
+            expected_supplychain.circuit_management_type
         );
-        assert_eq!(gameroom.alias, expected_gameroom.alias);
-        assert_eq!(gameroom.status, expected_gameroom.status);
+        assert_eq!(supplychain.alias, expected_supplychain.alias);
+        assert_eq!(supplychain.status, expected_supplychain.status);
     }
 
     #[test]
-    /// Tests if when receiving an admin message to CreateProposal the gameroom_member
+    /// Tests if when receiving an admin message to CreateProposal the supplychain_member
     /// table is updated as expected
     fn test_process_proposal_submitted_message_update_member_table() {
         let reactor = Reactor::new();
-        let pool: ConnectionPool = gameroom_database::create_connection_pool(DATABASE_URL)
+        let pool: ConnectionPool = supplychain_database::create_connection_pool(DATABASE_URL)
             .expect("Failed to get database connection pool");
 
-        clear_gameroom_table(&pool);
-        clear_gameroom_notification_table(&pool);
+        clear_supplychain_table(&pool);
+        clear_supplychain_notification_table(&pool);
 
         let message = get_submit_proposal_msg("01234-ABCDE");
         process_admin_event(message, &pool, "", "", "", reactor.igniter())
             .expect("Error processing message");
 
-        let members = query_gameroom_members_table(&pool);
+        let members = query_supplychain_members_table(&pool);
 
         assert_eq!(members.len(), 1);
 
         let node = &members[0];
-        let expected_node = get_new_gameroom_member("01234-ABCDE", SystemTime::now());
+        let expected_node = get_new_supplychain_member("01234-ABCDE", SystemTime::now());
 
         assert_eq!(node.node_id, expected_node.node_id);
         assert_eq!(node.endpoints, expected_node.endpoints);
     }
 
     #[test]
-    /// Tests if when receiving an admin message to CreateProposal the gameroom_service
+    /// Tests if when receiving an admin message to CreateProposal the supplychain_service
     /// table is updated as expected
     fn test_process_proposal_submitted_message_update_service_table() {
         let reactor = Reactor::new();
-        let pool: ConnectionPool = gameroom_database::create_connection_pool(DATABASE_URL)
+        let pool: ConnectionPool = supplychain_database::create_connection_pool(DATABASE_URL)
             .expect("Failed to get database connection pool");
 
-        clear_gameroom_table(&pool);
-        clear_gameroom_notification_table(&pool);
+        clear_supplychain_table(&pool);
+        clear_supplychain_notification_table(&pool);
 
         let message = get_submit_proposal_msg("01234-ABCDE");
         process_admin_event(message, &pool, "", "", "", reactor.igniter())
             .expect("Error processing message");
 
-        let services = query_gameroom_service_table(&pool);
+        let services = query_supplychain_service_table(&pool);
 
         assert_eq!(services.len(), 1);
 
         let service = &services[0];
-        let expected_service = get_new_gameroom_service("01234-ABCDE", SystemTime::now());
+        let expected_service = get_new_supplychain_service("01234-ABCDE", SystemTime::now());
 
         assert_eq!(service.service_id, expected_service.service_id);
         assert_eq!(service.service_type, expected_service.service_type);
@@ -786,27 +786,27 @@ mod test {
     }
 
     #[test]
-    /// Tests if when receiving an admin message to CreateProposal the gameroom_notification
+    /// Tests if when receiving an admin message to CreateProposal the supplychain_notification
     /// table is updated as expected
     fn test_process_proposal_submitted_message_update_notification_table() {
         let reactor = Reactor::new();
-        let pool: ConnectionPool = gameroom_database::create_connection_pool(DATABASE_URL)
+        let pool: ConnectionPool = supplychain_database::create_connection_pool(DATABASE_URL)
             .expect("Failed to get database connection pool");
 
-        clear_gameroom_table(&pool);
-        clear_gameroom_notification_table(&pool);
+        clear_supplychain_table(&pool);
+        clear_supplychain_notification_table(&pool);
 
         let message = get_submit_proposal_msg("01234-ABCDE");
         process_admin_event(message, &pool, "", "", "", reactor.igniter())
             .expect("Error processing message");
 
-        let notifications = query_gameroom_notification_table(&pool);
+        let notifications = query_supplychain_notification_table(&pool);
 
         assert_eq!(notifications.len(), 1);
 
         let notification = &notifications[0];
         let expected_notification =
-            get_new_gameroom_notification_proposal("01234-ABCDE", SystemTime::now());
+            get_new_supplychain_notification_proposal("01234-ABCDE", SystemTime::now());
 
         assert_eq!(
             notification.notification_type,
@@ -818,34 +818,34 @@ mod test {
     }
 
     #[test]
-    /// Tests if when receiving an admin message ProposalAccepted the gameroom_proposal
+    /// Tests if when receiving an admin message ProposalAccepted the supplychain_proposal
     /// table is updated as expected
     fn test_process_proposal_accepted_message_ok() {
         let reactor = Reactor::new();
-        let pool: ConnectionPool = gameroom_database::create_connection_pool(DATABASE_URL)
+        let pool: ConnectionPool = supplychain_database::create_connection_pool(DATABASE_URL)
             .expect("Failed to get database connection pool");
 
-        clear_gameroom_table(&pool);
-        clear_gameroom_notification_table(&pool);
+        clear_supplychain_table(&pool);
+        clear_supplychain_notification_table(&pool);
 
         let created_time = SystemTime::now();
 
-        // insert gameroom into database
-        insert_gameroom_table(&pool, get_gameroom("01234-ABCDE", created_time.clone()));
+        // insert supplychain into database
+        insert_supplychain_table(&pool, get_supplychain("01234-ABCDE", created_time.clone()));
 
         // insert pending proposal into database
         insert_proposals_table(
             &pool,
-            get_gameroom_proposal("01234-ABCDE", created_time.clone()),
+            get_supplychain_proposal("01234-ABCDE", created_time.clone()),
         );
 
         insert_member_table(
             &pool,
-            get_new_gameroom_member("01234-ABCDE", created_time.clone()),
+            get_new_supplychain_member("01234-ABCDE", created_time.clone()),
         );
         insert_service_table(
             &pool,
-            get_new_gameroom_service("01234-ABCDE", created_time.clone()),
+            get_new_supplychain_service("01234-ABCDE", created_time.clone()),
         );
 
         let accept_message = get_accept_proposal_msg("01234-ABCDE");
@@ -865,7 +865,7 @@ mod test {
         // Check status was changed to accepted
         assert_eq!(proposal.status, "Accepted");
 
-        let members = query_gameroom_members_table(&pool);
+        let members = query_supplychain_members_table(&pool);
 
         assert_eq!(members.len(), 1);
 
@@ -876,7 +876,7 @@ mod test {
         // Check status was changed to accepted
         assert_eq!(member.status, "Accepted");
 
-        let services = query_gameroom_service_table(&pool);
+        let services = query_supplychain_service_table(&pool);
 
         assert_eq!(services.len(), 1);
 
@@ -893,11 +893,11 @@ mod test {
     /// if a pending proposal for that circuit is not found
     fn test_process_proposal_accepted_message_err() {
         let reactor = Reactor::new();
-        let pool: ConnectionPool = gameroom_database::create_connection_pool(DATABASE_URL)
+        let pool: ConnectionPool = supplychain_database::create_connection_pool(DATABASE_URL)
             .expect("Failed to get database connection pool");
 
-        clear_gameroom_table(&pool);
-        clear_gameroom_notification_table(&pool);
+        clear_supplychain_table(&pool);
+        clear_supplychain_notification_table(&pool);
 
         let accept_message = get_accept_proposal_msg("01234-ABCDE");
 
@@ -912,34 +912,34 @@ mod test {
     }
 
     #[test]
-    /// Tests if when receiving an admin message ProposalRejected the gameroom_proposal and
-    /// gameroom tables are updated as expected
+    /// Tests if when receiving an admin message ProposalRejected the supplychain_proposal and
+    /// supplychain tables are updated as expected
     fn test_process_proposal_rejected_message_ok() {
         let reactor = Reactor::new();
-        let pool: ConnectionPool = gameroom_database::create_connection_pool(DATABASE_URL)
+        let pool: ConnectionPool = supplychain_database::create_connection_pool(DATABASE_URL)
             .expect("Failed to get database connection pool");
 
-        clear_gameroom_table(&pool);
-        clear_gameroom_notification_table(&pool);
+        clear_supplychain_table(&pool);
+        clear_supplychain_notification_table(&pool);
 
         let created_time = SystemTime::now();
 
-        // insert gameroom into database
-        insert_gameroom_table(&pool, get_gameroom("01234-ABCDE", created_time.clone()));
+        // insert supplychain into database
+        insert_supplychain_table(&pool, get_supplychain("01234-ABCDE", created_time.clone()));
 
         // insert pending proposal into database
         insert_proposals_table(
             &pool,
-            get_gameroom_proposal("01234-ABCDE", created_time.clone()),
+            get_supplychain_proposal("01234-ABCDE", created_time.clone()),
         );
 
         insert_member_table(
             &pool,
-            get_new_gameroom_member("01234-ABCDE", created_time.clone()),
+            get_new_supplychain_member("01234-ABCDE", created_time.clone()),
         );
         insert_service_table(
             &pool,
-            get_new_gameroom_service("01234-ABCDE", created_time.clone()),
+            get_new_supplychain_service("01234-ABCDE", created_time.clone()),
         );
 
         let rejected_message = get_reject_proposal_msg("01234-ABCDE");
@@ -959,18 +959,18 @@ mod test {
         // Check status was changed to rejected
         assert_eq!(proposal.status, "Rejected");
 
-        let gamerooms = query_gameroom_table(&pool);
+        let supplychains = query_supplychain_table(&pool);
 
-        assert_eq!(gamerooms.len(), 1);
+        assert_eq!(supplychains.len(), 1);
 
-        let gameroom = &gamerooms[0];
+        let supplychain = &supplychains[0];
 
-        // Check gameroom updated_time changed
-        assert!(gameroom.updated_time > created_time);
+        // Check supplychain updated_time changed
+        assert!(supplychain.updated_time > created_time);
         // Check status was changed to rejected
-        assert_eq!(gameroom.status, "Rejected");
+        assert_eq!(supplychain.status, "Rejected");
 
-        let members = query_gameroom_members_table(&pool);
+        let members = query_supplychain_members_table(&pool);
 
         assert_eq!(members.len(), 1);
 
@@ -981,7 +981,7 @@ mod test {
         // Check status was changed to rejected
         assert_eq!(member.status, "Rejected");
 
-        let services = query_gameroom_service_table(&pool);
+        let services = query_supplychain_service_table(&pool);
 
         assert_eq!(services.len(), 1);
 
@@ -998,11 +998,11 @@ mod test {
     /// if a pending proposal for that circuit is not found
     fn test_process_proposal_rejected_message_err() {
         let reactor = Reactor::new();
-        let pool: ConnectionPool = gameroom_database::create_connection_pool(DATABASE_URL)
+        let pool: ConnectionPool = supplychain_database::create_connection_pool(DATABASE_URL)
             .expect("Failed to get database connection pool");
 
-        clear_gameroom_table(&pool);
-        clear_gameroom_notification_table(&pool);
+        clear_supplychain_table(&pool);
+        clear_supplychain_notification_table(&pool);
 
         let rejected_message = get_reject_proposal_msg("01234-ABCDE");
 
@@ -1017,25 +1017,25 @@ mod test {
     }
 
     #[test]
-    /// Tests if when receiving an admin message ProposalVote the gameroom_proposal and
+    /// Tests if when receiving an admin message ProposalVote the supplychain_proposal and
     /// proposal_vote_record tables are updated as expected
     fn test_process_proposal_vote_message_ok() {
         let reactor = Reactor::new();
-        let pool: ConnectionPool = gameroom_database::create_connection_pool(DATABASE_URL)
+        let pool: ConnectionPool = supplychain_database::create_connection_pool(DATABASE_URL)
             .expect("Failed to get database connection pool");
 
-        clear_gameroom_table(&pool);
-        clear_gameroom_notification_table(&pool);
+        clear_supplychain_table(&pool);
+        clear_supplychain_notification_table(&pool);
 
         let created_time = SystemTime::now();
 
-        // insert gameroom into database
-        insert_gameroom_table(&pool, get_gameroom("01234-ABCDE", created_time.clone()));
+        // insert supplychain into database
+        insert_supplychain_table(&pool, get_supplychain("01234-ABCDE", created_time.clone()));
 
         // insert pending proposal into database
         insert_proposals_table(
             &pool,
-            get_gameroom_proposal("01234-ABCDE", created_time.clone()),
+            get_supplychain_proposal("01234-ABCDE", created_time.clone()),
         );
 
         let vote_message = get_vote_proposal_msg("01234-ABCDE");
@@ -1064,25 +1064,25 @@ mod test {
     }
 
     #[test]
-    /// Tests if when receiving an admin message to ProposalVote the gameroom_notification
+    /// Tests if when receiving an admin message to ProposalVote the supplychain_notification
     /// table is updated as expected
     fn test_process_proposal_vote_message_update_notification_table() {
         let reactor = Reactor::new();
-        let pool: ConnectionPool = gameroom_database::create_connection_pool(DATABASE_URL)
+        let pool: ConnectionPool = supplychain_database::create_connection_pool(DATABASE_URL)
             .expect("Failed to get database connection pool");
 
-        clear_gameroom_table(&pool);
-        clear_gameroom_notification_table(&pool);
+        clear_supplychain_table(&pool);
+        clear_supplychain_notification_table(&pool);
 
         let created_time = SystemTime::now();
 
-        // insert gameroom into database
-        insert_gameroom_table(&pool, get_gameroom("01234-ABCDE", created_time.clone()));
+        // insert supplychain into database
+        insert_supplychain_table(&pool, get_supplychain("01234-ABCDE", created_time.clone()));
 
         // insert pending proposal into database
         insert_proposals_table(
             &pool,
-            get_gameroom_proposal("01234-ABCDE", created_time.clone()),
+            get_supplychain_proposal("01234-ABCDE", created_time.clone()),
         );
 
         let vote_message = get_vote_proposal_msg("01234-ABCDE");
@@ -1091,7 +1091,7 @@ mod test {
         process_admin_event(vote_message, &pool, "", "", "", reactor.igniter())
             .expect("Error processing message");
 
-        let notifications = query_gameroom_notification_table(&pool);
+        let notifications = query_supplychain_notification_table(&pool);
 
         assert_eq!(notifications.len(), 1);
 
@@ -1102,7 +1102,7 @@ mod test {
 
         let notification = &notifications[0];
         let expected_notification =
-            get_new_gameroom_notification_vote("01234-ABCDE", SystemTime::now());
+            get_new_supplychain_notification_vote("01234-ABCDE", SystemTime::now());
 
         assert_eq!(
             notification.notification_type,
@@ -1118,11 +1118,11 @@ mod test {
     /// if a pending proposal for that circuit is not found
     fn test_process_proposal_vote_message_err() {
         let reactor = Reactor::new();
-        let pool: ConnectionPool = gameroom_database::create_connection_pool(DATABASE_URL)
+        let pool: ConnectionPool = supplychain_database::create_connection_pool(DATABASE_URL)
             .expect("Failed to get database connection pool");
 
-        clear_gameroom_table(&pool);
-        clear_gameroom_notification_table(&pool);
+        clear_supplychain_table(&pool);
+        clear_supplychain_notification_table(&pool);
 
         let vote_message = get_vote_proposal_msg("01234-ABCDE");
 
@@ -1137,7 +1137,7 @@ mod test {
     }
 
     #[test]
-    /// Tests if the admin message CreateProposal to a database GameroomProposal is successful
+    /// Tests if the admin message CreateProposal to a database SupplychainProposal is successful
     fn test_parse_proposal() {
         let time = SystemTime::now();
         let proposal = parse_proposal(
@@ -1146,22 +1146,22 @@ mod test {
             to_hex(&public_key()),
         );
 
-        assert_eq!(proposal, get_gameroom_proposal("01234-ABCDE", time.clone()));
+        assert_eq!(proposal, get_supplychain_proposal("01234-ABCDE", time.clone()));
     }
 
     #[test]
-    /// Tests if the admin message CreateCircuit to a database Gameroom is successful
-    fn test_parse_gameroom() {
+    /// Tests if the admin message CreateCircuit to a database Supplychain is successful
+    fn test_parse_supplychain() {
         let time = SystemTime::now();
-        let gameroom = parse_gameroom(&get_create_circuit_msg("01234-ABCDE"), time)
-            .expect("Failed to parse gameroom");
+        let supplychain = parse_supplychain(&get_create_circuit_msg("01234-ABCDE"), time)
+            .expect("Failed to parse supplychain");
 
-        assert_eq!(gameroom, get_gameroom("01234-ABCDE", time.clone()))
+        assert_eq!(supplychain, get_supplychain("01234-ABCDE", time.clone()))
     }
 
     #[test]
-    /// Tests if the admin message SplinterService to a database NewGameroomService is successful
-    fn test_parse_gameroom_service() {
+    /// Tests if the admin message SplinterService to a database NewSupplychainService is successful
+    fn test_parse_supplychain_service() {
         let time = SystemTime::now();
         let services = parse_splinter_services(
             "01234-ABCDE",
@@ -1171,13 +1171,13 @@ mod test {
 
         assert_eq!(
             services,
-            vec![get_new_gameroom_service("01234-ABCDE", time)]
+            vec![get_new_supplychain_service("01234-ABCDE", time)]
         );
     }
 
     #[test]
-    /// Tests if the admin message SplinterNode to a database NewGameroomMember is successful
-    fn test_parse_gameroom_member() {
+    /// Tests if the admin message SplinterNode to a database NewSupplychainMember is successful
+    fn test_parse_supplychain_member() {
         let time = SystemTime::now();
         let members = parse_splinter_nodes(
             "01234-ABCDE",
@@ -1185,13 +1185,13 @@ mod test {
             time,
         );
 
-        assert_eq!(members, vec![get_new_gameroom_member("01234-ABCDE", time)]);
+        assert_eq!(members, vec![get_new_supplychain_member("01234-ABCDE", time)]);
     }
 
     fn get_create_circuit_msg(circuit_id: &str) -> CreateCircuit {
         let mut arguments = vec![];
         arguments.push(("test_key".to_string(), "test_value".to_string()));
-        let application_metadata = ApplicationMetadata::new("test_gameroom", vec![].as_slice())
+        let application_metadata = ApplicationMetadata::new("test_supplychain", vec![].as_slice())
             .to_bytes()
             .expect("Failed to serialize application_metadata");
         CreateCircuit {
@@ -1210,7 +1210,7 @@ mod test {
             persistence: PersistenceType::Any,
             durability: DurabilityType::NoDurability,
             routes: RouteType::Any,
-            circuit_management_type: "gameroom".to_string(),
+            circuit_management_type: "supplychain".to_string(),
             application_metadata,
             comments: "test circuit".to_string(),
         }
@@ -1285,8 +1285,8 @@ mod test {
         }
     }
 
-    fn get_gameroom_proposal(circuit_id: &str, timestamp: SystemTime) -> NewGameroomProposal {
-        NewGameroomProposal {
+    fn get_supplychain_proposal(circuit_id: &str, timestamp: SystemTime) -> NewSupplychainProposal {
+        NewSupplychainProposal {
             proposal_type: "Create".to_string(),
             circuit_id: circuit_id.to_string(),
             circuit_hash: "8e066d41911817a42ab098eda35a2a2b11e93c753bc5ecc3ffb3e99ed99ada0d"
@@ -1299,15 +1299,15 @@ mod test {
         }
     }
 
-    fn get_gameroom(circuit_id: &str, timestamp: SystemTime) -> Gameroom {
-        Gameroom {
+    fn get_supplychain(circuit_id: &str, timestamp: SystemTime) -> Supplychain {
+        Supplychain {
             circuit_id: circuit_id.to_string(),
             authorization_type: "Trust".to_string(),
             persistence: "Any".to_string(),
             durability: "NoDurability".to_string(),
             routes: "Any".to_string(),
-            circuit_management_type: "gameroom".to_string(),
-            alias: "test_gameroom".to_string(),
+            circuit_management_type: "supplychain".to_string(),
+            alias: "test_supplychain".to_string(),
             status: "Pending".to_string(),
             created_time: timestamp,
             updated_time: timestamp,
@@ -1324,8 +1324,8 @@ mod test {
         }
     }
 
-    fn get_new_gameroom_service(circuit_id: &str, timestamp: SystemTime) -> NewGameroomService {
-        NewGameroomService {
+    fn get_new_supplychain_service(circuit_id: &str, timestamp: SystemTime) -> NewSupplychainService {
+        NewSupplychainService {
             circuit_id: circuit_id.to_string(),
             service_id: "gr00".to_string(),
             service_type: "scabbard".to_string(),
@@ -1341,8 +1341,8 @@ mod test {
         }
     }
 
-    fn get_new_gameroom_member(circuit_id: &str, timestamp: SystemTime) -> NewGameroomMember {
-        NewGameroomMember {
+    fn get_new_supplychain_member(circuit_id: &str, timestamp: SystemTime) -> NewSupplychainMember {
+        NewSupplychainMember {
             circuit_id: circuit_id.to_string(),
             node_id: "Node-123".to_string(),
             endpoints: vec!["127.0.0.1:8282".to_string()],
@@ -1352,12 +1352,12 @@ mod test {
         }
     }
 
-    fn get_new_gameroom_notification_proposal(
+    fn get_new_supplychain_notification_proposal(
         circuit_id: &str,
         timestamp: SystemTime,
-    ) -> NewGameroomNotification {
-        NewGameroomNotification {
-            notification_type: "gameroom_proposal".to_string(),
+    ) -> NewSupplychainNotification {
+        NewSupplychainNotification {
+            notification_type: "supplychain_proposal".to_string(),
             requester: to_hex(&public_key()),
             requester_node_id: "acme_corp".to_string(),
             target: circuit_id.to_string(),
@@ -1366,11 +1366,11 @@ mod test {
         }
     }
 
-    fn get_new_gameroom_notification_vote(
+    fn get_new_supplychain_notification_vote(
         circuit_id: &str,
         timestamp: SystemTime,
-    ) -> NewGameroomNotification {
-        NewGameroomNotification {
+    ) -> NewSupplychainNotification {
+        NewSupplychainNotification {
             notification_type: "proposal_vote_record".to_string(),
             requester: to_hex(&public_key()),
             requester_node_id: "acme_corp".to_string(),
@@ -1381,7 +1381,7 @@ mod test {
     }
 
     fn query_votes_table(pool: &ConnectionPool) -> Vec<ProposalVoteRecord> {
-        use gameroom_database::schema::proposal_vote_record;
+        use supplychain_database::schema::proposal_vote_record;
 
         let conn = &*pool.get().expect("Error getting db connection");
         proposal_vote_record::table
@@ -1390,116 +1390,116 @@ mod test {
             .expect("Error fetching vote records")
     }
 
-    fn query_gameroom_members_table(pool: &ConnectionPool) -> Vec<GameroomMember> {
-        use gameroom_database::schema::gameroom_member;
+    fn query_supplychain_members_table(pool: &ConnectionPool) -> Vec<SupplychainMember> {
+        use supplychain_database::schema::supplychain_member;
 
         let conn = &*pool.get().expect("Error getting db connection");
-        gameroom_member::table
-            .select(gameroom_member::all_columns)
-            .load::<GameroomMember>(conn)
+        supplychain_member::table
+            .select(supplychain_member::all_columns)
+            .load::<SupplychainMember>(conn)
             .expect("Error fetching circuit members")
     }
 
-    fn query_gameroom_service_table(pool: &ConnectionPool) -> Vec<GameroomService> {
-        use gameroom_database::schema::gameroom_service;
+    fn query_supplychain_service_table(pool: &ConnectionPool) -> Vec<SupplychainService> {
+        use supplychain_database::schema::supplychain_service;
 
         let conn = &*pool.get().expect("Error getting db connection");
-        gameroom_service::table
-            .select(gameroom_service::all_columns)
-            .load::<GameroomService>(conn)
+        supplychain_service::table
+            .select(supplychain_service::all_columns)
+            .load::<SupplychainService>(conn)
             .expect("Error fetching circuit members")
     }
 
-    fn query_proposals_table(pool: &ConnectionPool) -> Vec<GameroomProposal> {
-        use gameroom_database::schema::gameroom_proposal;
+    fn query_proposals_table(pool: &ConnectionPool) -> Vec<SupplychainProposal> {
+        use supplychain_database::schema::supplychain_proposal;
 
         let conn = &*pool.get().expect("Error getting db connection");
-        gameroom_proposal::table
-            .select(gameroom_proposal::all_columns)
-            .load::<GameroomProposal>(conn)
+        supplychain_proposal::table
+            .select(supplychain_proposal::all_columns)
+            .load::<SupplychainProposal>(conn)
             .expect("Error fetching proposals")
     }
 
-    fn query_gameroom_table(pool: &ConnectionPool) -> Vec<Gameroom> {
-        use gameroom_database::schema::gameroom;
+    fn query_supplychain_table(pool: &ConnectionPool) -> Vec<Supplychain> {
+        use supplychain_database::schema::supplychain;
 
         let conn = &*pool.get().expect("Error getting db connection");
-        gameroom::table
-            .select(gameroom::all_columns)
-            .load::<Gameroom>(conn)
+        supplychain::table
+            .select(supplychain::all_columns)
+            .load::<Supplychain>(conn)
             .expect("Error fetching proposals")
     }
 
-    fn query_gameroom_notification_table(pool: &ConnectionPool) -> Vec<GameroomNotification> {
-        use gameroom_database::schema::gameroom_notification;
+    fn query_supplychain_notification_table(pool: &ConnectionPool) -> Vec<SupplychainNotification> {
+        use supplychain_database::schema::supplychain_notification;
 
         let conn = &*pool.get().expect("Error getting db connection");
-        gameroom_notification::table
-            .select(gameroom_notification::all_columns)
-            .load::<GameroomNotification>(conn)
+        supplychain_notification::table
+            .select(supplychain_notification::all_columns)
+            .load::<SupplychainNotification>(conn)
             .expect("Error fetching proposals")
     }
 
-    fn insert_proposals_table(pool: &ConnectionPool, proposal: NewGameroomProposal) {
-        use gameroom_database::schema::gameroom_proposal;
+    fn insert_proposals_table(pool: &ConnectionPool, proposal: NewSupplychainProposal) {
+        use supplychain_database::schema::supplychain_proposal;
 
         let conn = &*pool.get().expect("Error getting db connection");
-        insert_into(gameroom_proposal::table)
+        insert_into(supplychain_proposal::table)
             .values(&vec![proposal])
             .execute(conn)
             .map(|_| ())
             .expect("Failed to insert proposal in table")
     }
 
-    fn insert_gameroom_table(pool: &ConnectionPool, gameroom: Gameroom) {
-        use gameroom_database::schema::gameroom;
+    fn insert_supplychain_table(pool: &ConnectionPool, supplychain: Supplychain) {
+        use supplychain_database::schema::supplychain;
 
         let conn = &*pool.get().expect("Error getting db connection");
-        insert_into(gameroom::table)
-            .values(&vec![gameroom])
+        insert_into(supplychain::table)
+            .values(&vec![supplychain])
             .execute(conn)
             .map(|_| ())
             .expect("Failed to insert proposal in table")
     }
 
-    fn insert_member_table(pool: &ConnectionPool, member: NewGameroomMember) {
-        use gameroom_database::schema::gameroom_member;
+    fn insert_member_table(pool: &ConnectionPool, member: NewSupplychainMember) {
+        use supplychain_database::schema::supplychain_member;
 
         let conn = &*pool.get().expect("Error getting db connection");
-        insert_into(gameroom_member::table)
+        insert_into(supplychain_member::table)
             .values(&vec![member])
             .execute(conn)
             .map(|_| ())
             .expect("Failed to insert proposal in table")
     }
 
-    fn insert_service_table(pool: &ConnectionPool, service: NewGameroomService) {
-        use gameroom_database::schema::gameroom_service;
+    fn insert_service_table(pool: &ConnectionPool, service: NewSupplychainService) {
+        use supplychain_database::schema::supplychain_service;
 
         let conn = &*pool.get().expect("Error getting db connection");
-        insert_into(gameroom_service::table)
+        insert_into(supplychain_service::table)
             .values(&vec![service])
             .execute(conn)
             .map(|_| ())
             .expect("Failed to insert proposal in table")
     }
 
-    fn clear_gameroom_table(pool: &ConnectionPool) {
-        use gameroom_database::schema::gameroom::dsl::*;
+    fn clear_supplychain_table(pool: &ConnectionPool) {
+        use supplychain_database::schema::supplychain::dsl::*;
 
         let conn = &*pool.get().expect("Error getting db connection");
-        diesel::delete(gameroom)
+        diesel::delete(supplychain)
             .execute(conn)
-            .expect("Error cleaning gameroom table");
+            .expect("Error cleaning supplychain table");
     }
 
-    fn clear_gameroom_notification_table(pool: &ConnectionPool) {
-        use gameroom_database::schema::gameroom_notification::dsl::*;
+    fn clear_supplychain_notification_table(pool: &ConnectionPool) {
+        use supplychain_database::schema::supplychain_notification::dsl::*;
 
         let conn = &*pool.get().expect("Error getting db connection");
-        diesel::delete(gameroom_notification)
+        diesel::delete(supplychain_notification)
             .execute(conn)
-            .expect("Error cleaning gameroom_notification table");
+            .expect("Error cleaning supplychain_notification table");
     }
 
     fn public_key() -> Vec<u8> {

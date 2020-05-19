@@ -50,7 +50,7 @@ export interface Node {
   };
 }
 
-export interface NewGameroomProposal {
+export interface NewSupplychainProposal {
   alias: string;
   members: string[];
 }
@@ -61,7 +61,7 @@ export interface Member {
   endpoints: string[];
 }
 
-export interface GameroomProposal {
+export interface SupplychainProposal {
   proposal_id: string;
   circuit_id: string;
   circuit_hash: string;
@@ -73,7 +73,7 @@ export interface GameroomProposal {
   status: string;
 }
 
-export interface GameroomNotification {
+export interface SupplychainNotification {
   id: number;
   notification_type: string;
   org: string;
@@ -101,7 +101,7 @@ export interface Ballot {
   vote: string;
 }
 
-export interface Gameroom {
+export interface Supplychain {
   circuit_id: string;
   authorization_type: string;
   persistence: string;

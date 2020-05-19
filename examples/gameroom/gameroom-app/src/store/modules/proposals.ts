@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { GameroomProposal, Ballot } from '@/store/models';
+import { SupplychainProposal, Ballot } from '@/store/models';
 import { listProposals, proposalVote, submitPayload } from '@/store/api';
 import { signPayload } from '@/utils/crypto';
 
@@ -22,11 +22,11 @@ interface Vote {
 }
 
 export interface ProposalState {
-  proposals: GameroomProposal[];
+  proposals: SupplychainProposal[];
 }
 
 const proposalState = {
-  proposals: ([] as GameroomProposal[]),
+  proposals: ([] as SupplychainProposal[]),
 };
 
 const getters = {
@@ -56,7 +56,7 @@ const actions = {
 };
 
 const mutations = {
-  setProposals(state: ProposalState, proposals: GameroomProposal[]) {
+  setProposals(state: ProposalState, proposals: SupplychainProposal[]) {
     proposalState.proposals = proposals;
   },
 };

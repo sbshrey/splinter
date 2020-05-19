@@ -118,8 +118,8 @@ impl From<ApplicationMetadataError> for AppAuthHandlerError {
     }
 }
 
-impl From<gameroom_database::DatabaseError> for AppAuthHandlerError {
-    fn from(err: gameroom_database::DatabaseError) -> AppAuthHandlerError {
+impl From<supplychain_database::DatabaseError> for AppAuthHandlerError {
+    fn from(err: supplychain_database::DatabaseError) -> AppAuthHandlerError {
         AppAuthHandlerError::DatabaseError(format!("{}", err))
     }
 }

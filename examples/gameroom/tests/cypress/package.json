@@ -1,7 +1,7 @@
 {
-  "name": "gameroom-app-test",
+  "name": "supplychain-app-test",
   "version": "0.3.3",
-  "description": "Gameroom App Integration tests",
+  "description": "Supplychain App Integration tests",
   "scripts": {
     "clear:db": "./scripts/clear_db.sh"
   },

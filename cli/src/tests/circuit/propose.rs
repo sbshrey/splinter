@@ -81,7 +81,7 @@ fn propose_successful_with_node_file() {
         "splinter circuit propose \
          --url http://localhost:8088 \
          --key /tmp/alice.priv \
-         --node-file {}/../examples/gameroom/node_registry/nodes.yaml \
+         --node-file {}/../examples/supplychain/node_registry/nodes.yaml \
          --service sc00::acme-node-000 \
          --service sc01::bubba-node-000 \
          --service-type *::scabbard \

@@ -13,5 +13,5 @@
 -- limitations under the License.
 -- -----------------------------------------------------------------------------
 
-ALTER TABLE gameroom_service ADD COLUMN IF NOT EXISTS
+ALTER TABLE supplychain_service ADD COLUMN IF NOT EXISTS
   last_event TEXT NOT NULL DEFAULT '';

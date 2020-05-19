@@ -12,13 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-.gameroom-detail-container {
+.supplychain-detail-container {
   display: flex;
   flex-direction: column;
   padding: 2rem 4rem;
   height: 100%;
 
-  .gameroom-information {
+  .supplychain-information {
     font-size: 1.1em;
   }
 
@@ -27,7 +27,7 @@
     padding-bottom: 1em;
   }
 
-  .gameroom-name {
+  .supplychain-name {
     display: inline-block;
     margin-right: 1rem;
   }

@@ -17,21 +17,21 @@ use std::time::{Duration, SystemTime};
 use actix::prelude::*;
 use actix_web::{web, Error, HttpRequest, HttpResponse};
 use actix_web_actors::ws;
-use gameroom_database::{helpers, ConnectionPool};
+use supplychain_database::{helpers, ConnectionPool};
 
 use crate::rest_api::RestApiResponseError;
 
-pub struct GameroomWebSocket {
+pub struct SupplychainWebSocket {
     db_pool: web::Data<ConnectionPool>,
 }
 
-impl GameroomWebSocket {
+impl SupplychainWebSocket {
     fn new(pool: web::Data<ConnectionPool>) -> Self {
         Self { db_pool: pool }
     }
 
     fn push_updates(&self, ctx: &mut <Self as Actor>::Context) {
-        trace!("Gameroom wants to sock-et to you");
+        trace!("Supplychain wants to sock-et to you");
         ctx.run_interval(Duration::from_secs(3), |ws, ctx| match check_notifications(
             ws.db_pool.clone(),
         ) {
@@ -50,16 +50,16 @@ impl GameroomWebSocket {
     }
 }
 
-impl Actor for GameroomWebSocket {
+impl Actor for SupplychainWebSocket {
     type Context = ws::WebsocketContext<Self>;
 
     fn started(&mut self, ctx: &mut Self::Context) {
-        debug!("Starting Gameroom web socket");
+        debug!("Starting Supplychain web socket");
         self.push_updates(ctx)
     }
 }
 
-impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for GameroomWebSocket {
+impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for SupplychainWebSocket {
     fn handle(&mut self, msg: Result<ws::Message, ws::ProtocolError>, ctx: &mut Self::Context) {
         match msg {
             Ok(ws::Message::Ping(msg)) => ctx.ping(&msg),
@@ -82,7 +82,7 @@ pub async fn connect_socket(
     pool: web::Data<ConnectionPool>,
     stream: web::Payload,
 ) -> Result<HttpResponse, Error> {
-    ws::start(GameroomWebSocket::new(pool), &req, stream)
+    ws::start(SupplychainWebSocket::new(pool), &req, stream)
 }
 
 fn check_notifications(pool: web::Data<ConnectionPool>) -> Result<bool, RestApiResponseError> {

@@ -16,9 +16,9 @@ use std::collections::HashMap;
 use std::time::{Duration, SystemTime};
 
 use actix_web::{error, web, Error, HttpResponse};
-use gameroom_database::{
+use supplychain_database::{
     helpers,
-    models::{GameroomMember, GameroomProposal},
+    models::{SupplychainMember, SupplychainProposal},
     ConnectionPool,
 };
 use openssl::hash::{hash, MessageDigest};
@@ -37,26 +37,26 @@ use super::{
 use crate::rest_api::RestApiResponseError;
 
 #[derive(Debug, Serialize)]
-struct ApiGameroomProposal {
+struct ApiSupplychainProposal {
     proposal_id: String,
     circuit_id: String,
     circuit_hash: String,
-    members: Vec<ApiGameroomMember>,
+    members: Vec<ApiSupplychainMember>,
     requester: String,
     requester_node_id: String,
     created_time: u64,
     updated_time: u64,
 }
 
-impl ApiGameroomProposal {
-    fn from(db_proposal: GameroomProposal, db_members: Vec<GameroomMember>) -> Self {
-        ApiGameroomProposal {
+impl ApiSupplychainProposal {
+    fn from(db_proposal: SupplychainProposal, db_members: Vec<SupplychainMember>) -> Self {
+        ApiSupplychainProposal {
             proposal_id: db_proposal.id.to_string(),
             circuit_id: db_proposal.circuit_id.to_string(),
             circuit_hash: db_proposal.circuit_hash.to_string(),
             members: db_members
                 .into_iter()
-                .map(ApiGameroomMember::from)
+                .map(ApiSupplychainMember::from)
                 .collect(),
             requester: db_proposal.requester.to_string(),
             requester_node_id: db_proposal.requester_node_id.to_string(),
@@ -75,14 +75,14 @@ impl ApiGameroomProposal {
 }
 
 #[derive(Debug, Serialize)]
-struct ApiGameroomMember {
+struct ApiSupplychainMember {
     node_id: String,
     endpoints: Vec<String>,
 }
 
-impl ApiGameroomMember {
-    fn from(db_circuit_member: GameroomMember) -> Self {
-        ApiGameroomMember {
+impl ApiSupplychainMember {
+    fn from(db_circuit_member: SupplychainMember) -> Self {
+        ApiSupplychainMember {
             node_id: db_circuit_member.node_id.to_string(),
             endpoints: db_circuit_member.endpoints,
         }
@@ -116,14 +116,14 @@ pub async fn fetch_proposal(
 fn get_proposal_from_db(
     pool: web::Data<ConnectionPool>,
     id: i64,
-) -> Result<ApiGameroomProposal, RestApiResponseError> {
+) -> Result<ApiSupplychainProposal, RestApiResponseError> {
     if let Some(proposal) = helpers::fetch_proposal_by_id(&*pool.get()?, id)? {
-        let members = helpers::fetch_gameroom_members_by_circuit_id_and_status(
+        let members = helpers::fetch_supplychain_members_by_circuit_id_and_status(
             &*pool.get()?,
             &proposal.circuit_id,
             "Pending",
         )?;
-        return Ok(ApiGameroomProposal::from(proposal, members));
+        return Ok(ApiSupplychainProposal::from(proposal, members));
     }
     Err(RestApiResponseError::NotFound(format!(
         "Proposal with id {} not found",
@@ -162,12 +162,12 @@ fn list_proposals_from_db(
     pool: web::Data<ConnectionPool>,
     limit: usize,
     offset: usize,
-) -> Result<(Vec<ApiGameroomProposal>, i64), RestApiResponseError> {
+) -> Result<(Vec<ApiSupplychainProposal>, i64), RestApiResponseError> {
     let db_limit = validate_limit(limit);
     let db_offset = offset as i64;
 
-    let mut proposal_members: HashMap<String, Vec<GameroomMember>> =
-        helpers::list_gameroom_members_with_status(&*pool.get()?, "Pending")?
+    let mut proposal_members: HashMap<String, Vec<SupplychainMember>> =
+        helpers::list_supplychain_members_with_status(&*pool.get()?, "Pending")?
             .into_iter()
             .fold(HashMap::new(), |mut acc, member| {
                 acc.entry(member.circuit_id.to_string())
@@ -179,14 +179,14 @@ fn list_proposals_from_db(
         .into_iter()
         .map(|proposal| {
             let circuit_id = proposal.circuit_id.to_string();
-            ApiGameroomProposal::from(
+            ApiSupplychainProposal::from(
                 proposal,
                 proposal_members
                     .remove(&circuit_id)
                     .unwrap_or_else(|| vec![]),
             )
         })
-        .collect::<Vec<ApiGameroomProposal>>();
+        .collect::<Vec<ApiSupplychainProposal>>();
 
     Ok((proposals, helpers::get_proposal_count(&*pool.get()?)?))
 }

@@ -77,11 +77,11 @@ services:
         - registry:/usr/local/apache2/htdocs
 
     db-acme:
-      image: gameroom-database
+      image: supplychain-database
       container_name: db-acme
       build:
         context: ../..
-        dockerfile: ./examples/gameroom/database/Dockerfile-installed
+        dockerfile: ./examples/supplychain/database/Dockerfile-installed
         args:
           - REPO_VERSION=${REPO_VERSION}
       restart: always
@@ -92,21 +92,21 @@ services:
       ports:
           - "5432:5432"
       environment:
-        POSTGRES_USER: gameroom
-        POSTGRES_PASSWORD: gameroom_example
-        POSTGRES_DB: gameroom
+        POSTGRES_USER: supplychain
+        POSTGRES_PASSWORD: supplychain_example
+        POSTGRES_DB: supplychain
       volumes:
         - "./database/tables:/docker-entrypoint-initdb.d"
 
-    gameroom-app-acme:
+    supplychain-app-acme:
       build:
         context: ../..
-        dockerfile: ./examples/gameroom/gameroom-app/Dockerfile-installed
+        dockerfile: ./examples/supplychain/supplychain-app/Dockerfile-installed
         args:
           VUE_APP_BRAND: "acme"
           REPO_VERSION: ${REPO_VERSION}
-      image: gameroom-app-acme
-      container_name: gameroom-app-acme
+      image: supplychain-app-acme
+      container_name: supplychain-app-acme
       environment:
         - VUE_APP_BRAND=acme
       expose:
@@ -114,12 +114,12 @@ services:
       ports:
         - '8080:80'
 
-    gameroomd-acme:
-        image: gameroomd
-        container_name: gameroomd-acme
+    supplychaind-acme:
+        image: supplychaind
+        container_name: supplychaind-acme
         build:
           context: ../..
-          dockerfile: ./examples/gameroom/daemon/Dockerfile-installed-${DISTRO}
+          dockerfile: ./examples/supplychain/daemon/Dockerfile-installed-${DISTRO}
           args:
             - CARGO_ARGS=${CARGO_ARGS}
             - REPO_VERSION=${REPO_VERSION}
@@ -134,7 +134,7 @@ services:
         command: |
           bash -c "
             # we need to wait for the db to have started.
-            until PGPASSWORD=gameroom_example psql -h db-acme -U gameroom -c '\q'; do
+            until PGPASSWORD=supplychain_example psql -h db-acme -U supplychain -c '\q'; do
                 >&2 echo \"Database is unavailable - sleeping\"
                 sleep 1
             done
@@ -145,9 +145,9 @@ services:
                sleep 1
             done
 
-            gameroom -vv database migrate --database-url postgres://gameroom:gameroom_example@db-acme:5432/gameroom
-            gameroomd -vv --database-url postgres://gameroom:gameroom_example@db-acme:5432/gameroom \
-              -b gameroomd-acme:8000 --splinterd-url http://splinterd-node-acme:8085
+            supplychain -vv database migrate --database-url postgres://supplychain:supplychain_example@db-acme:5432/supplychain
+            supplychaind -vv --database-url postgres://supplychain:supplychain_example@db-acme:5432/supplychain \
+              -b supplychaind-acme:8000 --splinterd-url http://splinterd-node-acme:8085
           "
 
     splinterd-node-acme:
@@ -182,11 +182,11 @@ services:
         "
 
     db-bubba:
-      image: gameroom-database
+      image: supplychain-database
       container_name: db-bubba
       build:
         context: ../..
-        dockerfile: ./examples/gameroom/database/Dockerfile-installed
+        dockerfile: ./examples/supplychain/database/Dockerfile-installed
         args:
           - REPO_VERSION=${REPO_VERSION}
       restart: always
@@ -197,19 +197,19 @@ services:
       ports:
           - "5433:5432"
       environment:
-        POSTGRES_USER: gameroom
-        POSTGRES_PASSWORD: gameroom_example
-        POSTGRES_DB: gameroom
+        POSTGRES_USER: supplychain
+        POSTGRES_PASSWORD: supplychain_example
+        POSTGRES_DB: supplychain
 
-    gameroom-app-bubba:
+    supplychain-app-bubba:
       build:
         context: ../..
-        dockerfile: ./examples/gameroom/gameroom-app/Dockerfile-installed
+        dockerfile: ./examples/supplychain/supplychain-app/Dockerfile-installed
         args:
           VUE_APP_BRAND: "bubba"
           REPO_VERSION: ${REPO_VERSION}
-      image: gameroom-app-bubba
-      container_name: gameroom-app-bubba
+      image: supplychain-app-bubba
+      container_name: supplychain-app-bubba
       environment:
         - VUE_APP_BRAND=bubba
       expose:
@@ -217,12 +217,12 @@ services:
       ports:
         - '8081:80'
 
-    gameroomd-bubba:
-        image: gameroomd
-        container_name: gameroomd-bubba
+    supplychaind-bubba:
+        image: supplychaind
+        container_name: supplychaind-bubba
         build:
           context: ../..
-          dockerfile: ./examples/gameroom/daemon/Dockerfile-installed-${DISTRO}
+          dockerfile: ./examples/supplychain/daemon/Dockerfile-installed-${DISTRO}
           args:
             - CARGO_ARGS=${CARGO_ARGS}
             - REPO_VERSION=${REPO_VERSION}
@@ -237,7 +237,7 @@ services:
         command: |
           bash -c "
             # we need to wait for the db to have started.
-            until PGPASSWORD=gameroom_example psql -h db-bubba -U gameroom -c '\q'; do
+            until PGPASSWORD=supplychain_example psql -h db-bubba -U supplychain -c '\q'; do
                 >&2 echo \"Database is unavailable - sleeping\"
                 sleep 1
             done
@@ -248,9 +248,9 @@ services:
                sleep 1
             done
 
-            gameroom -vv database migrate --database-url postgres://gameroom:gameroom_example@db-bubba:5432/gameroom
-            gameroomd -vv --database-url postgres://gameroom:gameroom_example@db-bubba:5432/gameroom \
-              -b gameroomd-bubba:8000 --splinterd-url http://splinterd-node-bubba:8085
+            supplychain -vv database migrate --database-url postgres://supplychain:supplychain_example@db-bubba:5432/supplychain
+            supplychaind -vv --database-url postgres://supplychain:supplychain_example@db-bubba:5432/supplychain \
+              -b supplychaind-bubba:8000 --splinterd-url http://splinterd-node-bubba:8085
           "
 
     splinterd-node-bubba:

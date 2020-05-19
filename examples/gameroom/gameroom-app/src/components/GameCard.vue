@@ -18,7 +18,7 @@ limitations under the License.
   <div class="card-container" @click="goToGame()" :class="[committed ? 'committed': 'not-committed']">
     <div class="game-preview-container">
       <xo-board v-if="committed" :game="game" class="small" :disabled='true'/>
-      <span v-else class="spinner-gameroom spinner" />
+      <span v-else class="spinner-supplychain spinner" />
     </div>
     <div class="game-details-containter">
       <h3 class="header">
@@ -62,11 +62,11 @@ limitations under the License.
 <script lang="ts">
 import { Vue, Prop, Component } from 'vue-property-decorator';
 import * as moment from 'moment';
-import { GameroomProposal, Game } from '../store/models';
+import { SupplychainProposal, Game } from '../store/models';
 import XOBoard from '@/components/xo/XOBoard.vue';
 import { gameIsOver, userIsInGame, userCanJoinGame, isUserTurn} from '@/utils/xo-games';
 import proposals from '@/store/modules/proposals';
-import gamerooms from '@/store/modules/gamerooms';
+import supplychains from '@/store/modules/supplychains';
 
 @Component({
   components: { 'xo-board': XOBoard },

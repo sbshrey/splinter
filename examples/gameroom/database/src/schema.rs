@@ -16,7 +16,7 @@
  */
 
 table! {
-    gameroom_user (email) {
+    supplychain_user (email) {
         email -> Text,
         public_key -> Text,
         encrypted_private_key -> Text,
@@ -25,7 +25,7 @@ table! {
 }
 
 table! {
-    gameroom (circuit_id) {
+    supplychain (circuit_id) {
         circuit_id -> Text,
         authorization_type -> Text,
         persistence -> Text,
@@ -40,7 +40,7 @@ table! {
 }
 
 table! {
-    gameroom_proposal (id) {
+    supplychain_proposal (id) {
         id -> Int8,
         proposal_type -> Text,
         circuit_id -> Text,
@@ -65,7 +65,7 @@ table! {
 }
 
 table! {
-    gameroom_member (id) {
+    supplychain_member (id) {
         id -> Int8,
         circuit_id -> Text,
         node_id -> Text,
@@ -77,7 +77,7 @@ table! {
 }
 
 table! {
-    gameroom_service (id) {
+    supplychain_service (id) {
         id -> Int8,
         circuit_id -> Text,
         service_id -> Text,
@@ -92,7 +92,7 @@ table! {
 }
 
 table! {
-    gameroom_notification (id) {
+    supplychain_notification (id) {
         id -> Int8,
         notification_type -> Text,
         requester -> Text,
@@ -117,4 +117,4 @@ table! {
     }
 }
 
-allow_tables_to_appear_in_same_query!(gameroom_service, gameroom_proposal);
+allow_tables_to_appear_in_same_query!(supplychain_service, supplychain_proposal);

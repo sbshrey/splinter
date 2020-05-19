@@ -37,7 +37,7 @@ limitations under the License.
 <script lang="ts">
 import { Vue, Component, Prop } from 'vue-property-decorator';
 import * as moment from 'moment';
-import { GameroomNotification, Gameroom } from '@/store/models';
+import { SupplychainNotification, Supplychain } from '@/store/models';
 import { hashGameName } from '@/utils/xo-games';
 
 
@@ -48,7 +48,7 @@ export default class DropdownNotification extends Vue {
   };
 
   @Prop()
-  notification!: GameroomNotification;
+  notification!: SupplychainNotification;
 
   get link(): any {
     const regex = RegExp('^new_game_created');
@@ -57,10 +57,10 @@ export default class DropdownNotification extends Vue {
       'new_game_created' :
       this.notification.notification_type;
     switch (notification) {
-      case('gameroom_proposal'): return {name: 'invitations'};
+      case('supplychain_proposal'): return {name: 'invitations'};
       case('circuit_active'):
         return {
-          name: 'gamerooms',
+          name: 'supplychains',
           params: {
             id: `${this.notification.target}`,
           },
@@ -78,23 +78,23 @@ export default class DropdownNotification extends Vue {
   }
 
   getName(): string {
-    const gamerooms = this.$store.getters['gamerooms/gameroomList'];
-    const gameroom = gamerooms.find((g: Gameroom) => g.circuit_id === this.notification.target);
-    return gameroom.alias;
+    const supplychains = this.$store.getters['supplychains/supplychainList'];
+    const supplychain = supplychains.find((g: Supplychain) => g.circuit_id === this.notification.target);
+    return supplychain.alias;
   }
 
-  formatText(notification: GameroomNotification) {
+  formatText(notification: SupplychainNotification) {
     const regex = RegExp('new_game_created:');
     if (regex.test(notification.notification_type)) {
       const gameName = this.getGameName(notification.notification_type);
-      return  `A new game is available in gameroom ${this.getName()}: ${gameName}`;
+      return  `A new game is available in supplychain ${this.getName()}: ${gameName}`;
     }
     switch (notification.notification_type) {
-      case('gameroom_proposal'): {
-        return `${notification.requester_org} has invited you to a new gameroom: ${this.getName()}`;
+      case('supplychain_proposal'): {
+        return `${notification.requester_org} has invited you to a new supplychain: ${this.getName()}`;
       }
       case('circuit_active'): {
-        return `A new gameroom has been created: ${this.getName()}`;
+        return `A new supplychain has been created: ${this.getName()}`;
       }
       default: return '';
     }

@@ -36,15 +36,15 @@
 /examples/private_xo/target
 /examples/private_xo/Cargo.lock
 
-/examples/gameroom/database/target
-/examples/gameroom/database/Cargo.lock
+/examples/supplychain/database/target
+/examples/supplychain/database/Cargo.lock
 
-/examples/gameroom/daemon/target
-/examples/gameroom/daemon/Cargo.lock
+/examples/supplychain/daemon/target
+/examples/supplychain/daemon/Cargo.lock
 
-/examples/gameroom/gameroom-app/node_modules
-/examples/gameroom/gameroom-app/dist
-/examples/gameroom/gameroom-app/package-lock.json
+/examples/supplychain/supplychain-app/node_modules
+/examples/supplychain/supplychain-app/dist
+/examples/supplychain/supplychain-app/package-lock.json
 
 /target
 /Cargo.lock

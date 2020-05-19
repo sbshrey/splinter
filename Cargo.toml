@@ -22,9 +22,9 @@ members = [
     "examples/private_counter/cli",
     "examples/private_counter/service",
     "examples/private_xo",
-    "examples/gameroom/cli",
-    "examples/gameroom/database",
-    "examples/gameroom/daemon",
+    "examples/supplychain/cli",
+    "examples/supplychain/database",
+    "examples/supplychain/daemon",
     "services/health",
     "services/scabbard",
 ]

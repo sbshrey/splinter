@@ -13,4 +13,4 @@
 -- limitations under the License.
 -- -----------------------------------------------------------------------------
 
-ALTER TABLE gameroom_service DROP COLUMN last_event;
+ALTER TABLE supplychain_service DROP COLUMN last_event;

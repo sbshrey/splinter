@@ -13,14 +13,14 @@
 -- limitations under the License.
 
 -- Create tables
-CREATE TABLE IF NOT EXISTS gameroom_user (
+CREATE TABLE IF NOT EXISTS supplychain_user (
   email                     TEXT        PRIMARY KEY,
   public_key                TEXT        NOT NULL,
   encrypted_private_key     TEXT        NOT NULL,
   hashed_password           TEXT        NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS  gameroom (
+CREATE TABLE IF NOT EXISTS  supplychain (
   circuit_id                TEXT        PRIMARY KEY,
   authorization_type        TEXT        NOT NULL,
   persistence               TEXT        NOT NULL,
@@ -33,7 +33,7 @@ CREATE TABLE IF NOT EXISTS  gameroom (
   updated_time              TIMESTAMP   NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS gameroom_proposal (
+CREATE TABLE IF NOT EXISTS supplychain_proposal (
   id                        BIGSERIAL   PRIMARY KEY,
   proposal_type             TEXT        NOT NULL ,
   circuit_id                TEXT        NOT NULL,
@@ -43,7 +43,7 @@ CREATE TABLE IF NOT EXISTS gameroom_proposal (
   status                    TEXT        NOT NULL,
   created_time              TIMESTAMP   NOT NULL,
   updated_time              TIMESTAMP   NOT NULL,
-  FOREIGN KEY (circuit_id) REFERENCES gameroom(circuit_id) ON DELETE CASCADE
+  FOREIGN KEY (circuit_id) REFERENCES supplychain(circuit_id) ON DELETE CASCADE
 );
 
 
@@ -54,10 +54,10 @@ CREATE TABLE IF NOT EXISTS proposal_vote_record(
   voter_node_id             TEXT        NOT NULL,
   vote                      TEXT        NOT NULL,
   created_time              TIMESTAMP   NOT NULL,
-  FOREIGN KEY (proposal_id) REFERENCES gameroom_proposal(id) ON DELETE CASCADE
+  FOREIGN KEY (proposal_id) REFERENCES supplychain_proposal(id) ON DELETE CASCADE
 );
 
-CREATE TABLE IF NOT EXISTS gameroom_member (
+CREATE TABLE IF NOT EXISTS supplychain_member (
   id                        BIGSERIAL   PRIMARY KEY,
   circuit_id               TEXT        NOT NULL,
   node_id                   TEXT        NOT NULL,
@@ -65,10 +65,10 @@ CREATE TABLE IF NOT EXISTS gameroom_member (
   status                    TEXT        NOT NULL,
   created_time              TIMESTAMP   NOT NULL,
   updated_time              TIMESTAMP   NOT NULL,
-  FOREIGN KEY (circuit_id) REFERENCES gameroom(circuit_id) ON DELETE CASCADE
+  FOREIGN KEY (circuit_id) REFERENCES supplychain(circuit_id) ON DELETE CASCADE
 );
 
-CREATE TABLE IF NOT EXISTS gameroom_service (
+CREATE TABLE IF NOT EXISTS supplychain_service (
   id                        BIGSERIAL   PRIMARY KEY,
   circuit_id                TEXT        NOT NULL,
   service_id                TEXT        NOT NULL,
@@ -79,10 +79,10 @@ CREATE TABLE IF NOT EXISTS gameroom_service (
   last_event                TEXT        NOT NULL,
   created_time              TIMESTAMP   NOT NULL,
   updated_time              TIMESTAMP   NOT NULL,
-  FOREIGN KEY (circuit_id) REFERENCES gameroom(circuit_id) ON DELETE CASCADE
+  FOREIGN KEY (circuit_id) REFERENCES supplychain(circuit_id) ON DELETE CASCADE
 );
 
-CREATE TABLE IF NOT EXISTS gameroom_notification (
+CREATE TABLE IF NOT EXISTS supplychain_notification (
   id                        BIGSERIAL   PRIMARY KEY,
   notification_type         TEXT        NOT NULL,
   requester                 TEXT        NOT NULL,
@@ -102,5 +102,5 @@ CREATE TABLE IF NOT EXISTS xo_games (
   game_board                TEXT        NOT NULL,
   created_time              TIMESTAMP   NOT NULL,
   updated_time              TIMESTAMP   NOT NULL,
-  FOREIGN KEY (circuit_id) REFERENCES gameroom(circuit_id) ON DELETE CASCADE
+  FOREIGN KEY (circuit_id) REFERENCES supplychain(circuit_id) ON DELETE CASCADE
 );

@@ -73,16 +73,16 @@ const router = new Router({
           },
         },
         {
-          path: 'gamerooms/:id',
-          name: 'gamerooms',
-          component: () => import('@/views/GameroomDetail.vue'),
+          path: 'supplychains/:id',
+          name: 'supplychains',
+          component: () => import('@/views/SupplychainDetail.vue'),
           meta: {
             requiresAuth: true,
-            loadingMessage: 'Loading gameroom',
+            loadingMessage: 'Loading supplychain',
           },
         },
         {
-          path: 'gamerooms/:id/games/:gameNameHash',
+          path: 'supplychains/:id/games/:gameNameHash',
           name: 'games',
           component: () => import('@/views/GameDetail.vue'),
           meta: {

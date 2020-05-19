@@ -14,9 +14,9 @@
 use std::collections::HashMap;
 
 use actix_web::{client::Client, error, http::StatusCode, web, Error, HttpResponse};
-use gameroom_database::{
+use supplychain_database::{
     helpers,
-    models::{Gameroom, GameroomMember as DbGameroomMember},
+    models::{Supplychain, SupplychainMember as DbSupplychainMember},
     ConnectionPool,
 };
 use openssl::hash::{hash, MessageDigest};
@@ -32,7 +32,7 @@ use splinter::protos::admin::{
 };
 
 use crate::application_metadata::ApplicationMetadata;
-use crate::rest_api::{GameroomdData, RestApiResponseError};
+use crate::rest_api::{SupplychaindData, RestApiResponseError};
 
 use super::{
     get_response_paging_info, validate_limit, ErrorResponse, SuccessResponse, DEFAULT_LIMIT,
@@ -40,65 +40,65 @@ use super::{
 };
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct CreateGameroomForm {
+pub struct CreateSupplychainForm {
     alias: String,
     members: Vec<String>,
 }
 
 #[derive(Debug, Serialize)]
-struct ApiGameroom {
+struct ApiSupplychain {
     circuit_id: String,
     authorization_type: String,
     persistence: String,
     routes: String,
     circuit_management_type: String,
-    members: Vec<ApiGameroomMember>,
+    members: Vec<ApiSupplychainMember>,
     alias: String,
     status: String,
 }
 
-impl ApiGameroom {
-    fn from(db_gameroom: Gameroom, db_members: Vec<DbGameroomMember>) -> Self {
+impl ApiSupplychain {
+    fn from(db_supplychain: Supplychain, db_members: Vec<DbSupplychainMember>) -> Self {
         Self {
-            circuit_id: db_gameroom.circuit_id.to_string(),
-            authorization_type: db_gameroom.authorization_type.to_string(),
-            persistence: db_gameroom.persistence.to_string(),
-            routes: db_gameroom.routes.to_string(),
-            circuit_management_type: db_gameroom.circuit_management_type.to_string(),
+            circuit_id: db_supplychain.circuit_id.to_string(),
+            authorization_type: db_supplychain.authorization_type.to_string(),
+            persistence: db_supplychain.persistence.to_string(),
+            routes: db_supplychain.routes.to_string(),
+            circuit_management_type: db_supplychain.circuit_management_type.to_string(),
             members: db_members
                 .into_iter()
-                .map(ApiGameroomMember::from)
+                .map(ApiSupplychainMember::from)
                 .collect(),
-            alias: db_gameroom.alias.to_string(),
-            status: db_gameroom.status,
+            alias: db_supplychain.alias.to_string(),
+            status: db_supplychain.status,
         }
     }
 }
 
 #[derive(Debug, Serialize)]
-struct ApiGameroomMember {
+struct ApiSupplychainMember {
     node_id: String,
     endpoints: Vec<String>,
 }
 
-impl ApiGameroomMember {
-    fn from(db_circuit_member: DbGameroomMember) -> Self {
-        ApiGameroomMember {
+impl ApiSupplychainMember {
+    fn from(db_circuit_member: DbSupplychainMember) -> Self {
+        ApiSupplychainMember {
             node_id: db_circuit_member.node_id.to_string(),
             endpoints: db_circuit_member.endpoints,
         }
     }
 }
 
-pub async fn propose_gameroom(
+pub async fn propose_supplychain(
     pool: web::Data<ConnectionPool>,
-    create_gameroom: web::Json<CreateGameroomForm>,
+    create_supplychain: web::Json<CreateSupplychainForm>,
     node_info: web::Data<Node>,
     client: web::Data<Client>,
     splinterd_url: web::Data<String>,
-    gameroomd_data: web::Data<GameroomdData>,
+    supplychaind_data: web::Data<SupplychaindData>,
 ) -> HttpResponse {
-    let response = fetch_node_information(&create_gameroom.members, &splinterd_url, client).await;
+    let response = fetch_node_information(&create_supplychain.members, &splinterd_url, client).await;
 
     let nodes = match response {
         Ok(nodes) => nodes,
@@ -126,7 +126,7 @@ pub async fn propose_gameroom(
         endpoints: node_info.endpoints.to_vec(),
     });
 
-    let scabbard_admin_keys = vec![gameroomd_data.get_ref().public_key.clone()];
+    let scabbard_admin_keys = vec![supplychaind_data.get_ref().public_key.clone()];
 
     let mut scabbard_args = vec![];
     scabbard_args.push((
@@ -182,8 +182,8 @@ pub async fn propose_gameroom(
         }
     }
 
-    let application_metadata = match check_alias_uniqueness(pool, &create_gameroom.alias) {
-        Ok(()) => match ApplicationMetadata::new(&create_gameroom.alias, &scabbard_admin_keys)
+    let application_metadata = match check_alias_uniqueness(pool, &create_supplychain.alias) {
+        Ok(()) => match ApplicationMetadata::new(&create_supplychain.alias, &scabbard_admin_keys)
             .to_bytes()
         {
             Ok(bytes) => bytes,
@@ -200,7 +200,7 @@ pub async fn propose_gameroom(
     let create_request = match CreateCircuitBuilder::new()
         .with_roster(&roster)
         .with_members(&members)
-        .with_circuit_management_type("gameroom")
+        .with_circuit_management_type("supplychain")
         .with_application_metadata(&application_metadata)
         .build()
     {
@@ -303,10 +303,10 @@ fn check_alias_uniqueness(
     pool: web::Data<ConnectionPool>,
     alias: &str,
 ) -> Result<(), RestApiResponseError> {
-    if let Some(gameroom) = helpers::fetch_gameroom_by_alias(&*pool.get()?, alias)? {
+    if let Some(supplychain) = helpers::fetch_supplychain_by_alias(&*pool.get()?, alias)? {
         return Err(RestApiResponseError::BadRequest(format!(
-            "Gameroom with alias {} already exists",
-            gameroom.alias
+            "Supplychain with alias {} already exists",
+            supplychain.alias
         )));
     }
     Ok(())
@@ -333,11 +333,11 @@ fn make_payload(
     Ok(payload_bytes)
 }
 
-pub async fn list_gamerooms(
+pub async fn list_supplychains(
     pool: web::Data<ConnectionPool>,
     query: web::Query<HashMap<String, String>>,
 ) -> Result<HttpResponse, Error> {
-    let mut base_link = "api/gamerooms?".to_string();
+    let mut base_link = "api/supplychains?".to_string();
     let offset: usize = query
         .get("offset")
         .map(ToOwned::to_owned)
@@ -358,11 +358,11 @@ pub async fn list_gamerooms(
         base_link.push_str(format!("status={}?", status).as_str());
     }
 
-    match web::block(move || list_gamerooms_from_db(pool, status_optional, limit, offset)).await {
-        Ok((gamerooms, query_count)) => {
+    match web::block(move || list_supplychains_from_db(pool, status_optional, limit, offset)).await {
+        Ok((supplychains, query_count)) => {
             let paging_info =
-                get_response_paging_info(limit, offset, "api/gamerooms?", query_count as usize);
-            Ok(HttpResponse::Ok().json(SuccessResponse::list(gamerooms, paging_info)))
+                get_response_paging_info(limit, offset, "api/supplychains?", query_count as usize);
+            Ok(HttpResponse::Ok().json(SuccessResponse::list(supplychains, paging_info)))
         }
         Err(err) => {
             debug!("Internal Server Error: {}", err);
@@ -371,57 +371,57 @@ pub async fn list_gamerooms(
     }
 }
 
-fn list_gamerooms_from_db(
+fn list_supplychains_from_db(
     pool: web::Data<ConnectionPool>,
     status_optional: Option<String>,
     limit: usize,
     offset: usize,
-) -> Result<(Vec<ApiGameroom>, i64), RestApiResponseError> {
+) -> Result<(Vec<ApiSupplychain>, i64), RestApiResponseError> {
     let db_limit = validate_limit(limit);
     let db_offset = offset as i64;
 
     if let Some(status) = status_optional {
-        let gamerooms = helpers::list_gamerooms_with_paging_and_status(
+        let supplychains = helpers::list_supplychains_with_paging_and_status(
             &*pool.get()?,
             &status,
             db_limit,
             db_offset,
         )?
         .into_iter()
-        .map(|gameroom| {
-            let circuit_id = gameroom.circuit_id.to_string();
-            let members = helpers::fetch_gameroom_members_by_circuit_id_and_status(
+        .map(|supplychain| {
+            let circuit_id = supplychain.circuit_id.to_string();
+            let members = helpers::fetch_supplychain_members_by_circuit_id_and_status(
                 &*pool.get()?,
                 &circuit_id,
-                &gameroom.status,
+                &supplychain.status,
             )?;
-            Ok(ApiGameroom::from(gameroom, members))
+            Ok(ApiSupplychain::from(supplychain, members))
         })
-        .collect::<Result<Vec<ApiGameroom>, RestApiResponseError>>()?;
-        Ok((gamerooms, helpers::get_gameroom_count(&*pool.get()?)?))
+        .collect::<Result<Vec<ApiSupplychain>, RestApiResponseError>>()?;
+        Ok((supplychains, helpers::get_supplychain_count(&*pool.get()?)?))
     } else {
-        let gamerooms = helpers::list_gamerooms_with_paging(&*pool.get()?, db_limit, db_offset)?
+        let supplychains = helpers::list_supplychains_with_paging(&*pool.get()?, db_limit, db_offset)?
             .into_iter()
-            .map(|gameroom| {
-                let circuit_id = gameroom.circuit_id.to_string();
-                let members = helpers::fetch_gameroom_members_by_circuit_id_and_status(
+            .map(|supplychain| {
+                let circuit_id = supplychain.circuit_id.to_string();
+                let members = helpers::fetch_supplychain_members_by_circuit_id_and_status(
                     &*pool.get()?,
                     &circuit_id,
-                    &gameroom.status,
+                    &supplychain.status,
                 )?;
-                Ok(ApiGameroom::from(gameroom, members))
+                Ok(ApiSupplychain::from(supplychain, members))
             })
-            .collect::<Result<Vec<ApiGameroom>, RestApiResponseError>>()?;
-        Ok((gamerooms, helpers::get_gameroom_count(&*pool.get()?)?))
+            .collect::<Result<Vec<ApiSupplychain>, RestApiResponseError>>()?;
+        Ok((supplychains, helpers::get_supplychain_count(&*pool.get()?)?))
     }
 }
 
-pub async fn fetch_gameroom(
+pub async fn fetch_supplychain(
     pool: web::Data<ConnectionPool>,
     circuit_id: web::Path<String>,
 ) -> Result<HttpResponse, Error> {
-    match web::block(move || fetch_gameroom_from_db(pool, &circuit_id)).await {
-        Ok(gameroom) => Ok(HttpResponse::Ok().json(gameroom)),
+    match web::block(move || fetch_supplychain_from_db(pool, &circuit_id)).await {
+        Ok(supplychain) => Ok(HttpResponse::Ok().json(supplychain)),
         Err(err) => {
             match err {
                 error::BlockingError::Error(err) => match err {
@@ -440,20 +440,20 @@ pub async fn fetch_gameroom(
     }
 }
 
-fn fetch_gameroom_from_db(
+fn fetch_supplychain_from_db(
     pool: web::Data<ConnectionPool>,
     circuit_id: &str,
-) -> Result<ApiGameroom, RestApiResponseError> {
-    if let Some(gameroom) = helpers::fetch_gameroom(&*pool.get()?, circuit_id)? {
-        let members = helpers::fetch_gameroom_members_by_circuit_id_and_status(
+) -> Result<ApiSupplychain, RestApiResponseError> {
+    if let Some(supplychain) = helpers::fetch_supplychain(&*pool.get()?, circuit_id)? {
+        let members = helpers::fetch_supplychain_members_by_circuit_id_and_status(
             &*pool.get()?,
-            &gameroom.circuit_id,
-            &gameroom.status,
+            &supplychain.circuit_id,
+            &supplychain.status,
         )?;
-        return Ok(ApiGameroom::from(gameroom, members));
+        return Ok(ApiSupplychain::from(supplychain, members));
     }
     Err(RestApiResponseError::NotFound(format!(
-        "Gameroom with id {} not found",
+        "Supplychain with id {} not found",
         circuit_id
     )))
 }

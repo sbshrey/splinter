@@ -11,12 +11,12 @@ args:
     - name: $(a:SIGNER_PUB_KEY)
       required: false
       description: "Public key of the signer"
-    - name: $(a:GAMEROOM_NAME)
+    - name: $(a:SUPPLYCHAIN_NAME)
       required: true
-      description: "Name of the gameroom"
+      description: "Name of the supplychain"
 rules:
     set-management-type:
-        management-type: "gameroom"
+        management-type: "supplychain"
     create-services:
         service-type: 'scabbard'
         service-args:
@@ -31,4 +31,4 @@ rules:
             - key: "scabbard_admin_keys"
               value: ["$(a:ADMIN_KEYS)"]
             - key: "alias"
-              value: "$(a:GAMEROOM_NAME)"
+              value: "$(a:SUPPLYCHAIN_NAME)"

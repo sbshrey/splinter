@@ -63,10 +63,10 @@ services:
         cp /tmp/*.deb /build/debs
       "
 
-# ---==== gameroom components ====---
+# ---==== supplychain components ====---
 
-  gameroomd:
-    image: gameroomd:${ISOLATION_ID}
+  supplychaind:
+    image: supplychaind:${ISOLATION_ID}
     volumes:
       - ../../build/debs:/build/debs
     command: |
@@ -74,8 +74,8 @@ services:
         cp /tmp/*.deb /build/debs
       "
 
-  gameroom-app-acme:
-    image: gameroom-app-acme:${ISOLATION_ID}
+  supplychain-app-acme:
+    image: supplychain-app-acme:${ISOLATION_ID}
     volumes:
       - ../../build/html:/build/html
     command: |
@@ -83,8 +83,8 @@ services:
         cp /tmp/*.tar.gz /build/html
       "
 
-  gameroom-app-bubba:
-    image: gameroom-app-bubba:${ISOLATION_ID}
+  supplychain-app-bubba:
+    image: supplychain-app-bubba:${ISOLATION_ID}
     volumes:
       - ../../build/html:/build/html
     command: |

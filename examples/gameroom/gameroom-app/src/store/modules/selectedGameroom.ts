@@ -12,28 +12,28 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { Gameroom } from '@/store/models';
-import { fetchGameroom } from '@/store/api';
+import { Supplychain } from '@/store/models';
+import { fetchSupplychain } from '@/store/api';
 
-export interface SelectedGameroom {
-  gameroom: Gameroom;
+export interface SelectedSupplychain {
+  supplychain: Supplychain;
 }
 
-const selectedGameroom = {
-  gameroom: ({} as Gameroom),
+const selectedSupplychain = {
+  supplychain: ({} as Supplychain),
 };
 
 const getters = {
-  getGameroom(state: SelectedGameroom): Gameroom {
-    return state.gameroom;
+  getSupplychain(state: SelectedSupplychain): Supplychain {
+    return state.supplychain;
   },
 };
 
 const actions = {
-  async updateSelectedGameroom({ commit }: any, circuitID: string) {
+  async updateSelectedSupplychain({ commit }: any, circuitID: string) {
     try {
-      const gameroom = await fetchGameroom(circuitID);
-      commit('setSelectedGameroom', gameroom);
+      const supplychain = await fetchSupplychain(circuitID);
+      commit('setSelectedSupplychain', supplychain);
     } catch (e) {
       throw e;
     }
@@ -41,15 +41,15 @@ const actions = {
 };
 
 const mutations = {
-  setSelectedGameroom(state: SelectedGameroom, gameroom: Gameroom) {
-    state.gameroom = gameroom;
+  setSelectedSupplychain(state: SelectedSupplychain, supplychain: Supplychain) {
+    state.supplychain = supplychain;
   },
 };
 
 export default {
   namespaced: true,
-  name: 'selectedGameroom',
-  state: selectedGameroom,
+  name: 'selectedSupplychain',
+  state: selectedSupplychain,
   getters,
   actions,
   mutations,

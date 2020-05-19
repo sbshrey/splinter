@@ -16,7 +16,7 @@ use bcrypt::BcryptError;
 use std::error::Error;
 use std::fmt;
 
-use gameroom_database::DatabaseError;
+use supplychain_database::DatabaseError;
 use protobuf::error::ProtobufError;
 use splinter::admin::error::MarshallingError;
 

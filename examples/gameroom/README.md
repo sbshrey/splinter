@@ -1,17 +1,17 @@
-# Gameroom
+# Supplychain
 
-Gameroom is an example Splinter application that allows you to set up private,
-multi-party circuits (called "gamerooms") and play tic tac toe with shared
+Supplychain is an example Splinter application that allows you to set up private,
+multi-party circuits (called "supplychains") and play tic tac toe with shared
 state, as managed by two-phase-commit consensus between the participants. This
 example application, as configured, sets up Splinter nodes for two imaginary
 organizations: Acme Corporation and Bubba Bakery.
 
 To learn about the Splinter functionality that powers this deceptively simple
-application, see the [Gameroom Technical
-Walkthrough](https://files.splinter.dev/docs/Gameroom_Walkthrough-Splinter_v0.3.4.pdf)
+application, see the [Supplychain Technical
+Walkthrough](https://files.splinter.dev/docs/Supplychain_Walkthrough-Splinter_v0.3.4.pdf)
 (PDF).
 
-## How to Run the Gameroom Demo
+## How to Run the Supplychain Demo
 
 **Note:** This demo uses the Sabre smart contract engine provided in
 [Sawtooth Sabre](https://github.com/hyperledger/sawtooth-sabre) and the XO smart
@@ -28,14 +28,14 @@ below.
 
 1. Clone the [splinter repository](https://github.com/Cargill/splinter).
 
-1. To start Gameroom, run the following command from the Splinter root
+1. To start Supplychain, run the following command from the Splinter root
    directory:
 
     ```
-    docker-compose -f examples/gameroom/docker-compose.yaml up --build
+    docker-compose -f examples/supplychain/docker-compose.yaml up --build
     ```
 
-    **Note:** To run Gameroom with experimental features enabled, set an
+    **Note:** To run Supplychain with experimental features enabled, set an
     environment variable in your shell before running the command above. For
     example: `export 'CARGO_ARGS=-- --features experimental'`. To go back to
     building with default features, unset the environment variable:
@@ -46,7 +46,7 @@ below.
    Alice's private key:
 
     ```
-    $ docker-compose -f examples/gameroom/docker-compose.yaml run generate-registry bash
+    $ docker-compose -f examples/supplychain/docker-compose.yaml run generate-registry bash
     root@<container-id>:/# cat /registry/alice.priv
     <the private key value>
     root@<container-id>:/#
@@ -63,5 +63,5 @@ below.
 1. When you are finished, shut down the demo with the following command:
 
      ```
-     docker-compose -f examples/gameroom/docker-compose.yaml down
+     docker-compose -f examples/supplychain/docker-compose.yaml down
      ```

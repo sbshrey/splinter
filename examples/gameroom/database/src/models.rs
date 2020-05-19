@@ -19,8 +19,8 @@ use super::schema::*;
 use std::time::SystemTime;
 
 #[derive(Insertable, Queryable)]
-#[table_name = "gameroom_user"]
-pub struct GameroomUser {
+#[table_name = "supplychain_user"]
+pub struct SupplychainUser {
     pub email: String,
     pub public_key: String,
     pub encrypted_private_key: String,
@@ -28,9 +28,9 @@ pub struct GameroomUser {
 }
 
 #[derive(Insertable, Queryable, Identifiable, PartialEq, Debug)]
-#[table_name = "gameroom"]
+#[table_name = "supplychain"]
 #[primary_key(circuit_id)]
-pub struct Gameroom {
+pub struct Supplychain {
     pub circuit_id: String,
     pub authorization_type: String,
     pub persistence: String,
@@ -44,9 +44,9 @@ pub struct Gameroom {
 }
 
 #[derive(Queryable, Identifiable, Associations, PartialEq, Debug)]
-#[table_name = "gameroom_proposal"]
-#[belongs_to(Gameroom, foreign_key = "circuit_id")]
-pub struct GameroomProposal {
+#[table_name = "supplychain_proposal"]
+#[belongs_to(Supplychain, foreign_key = "circuit_id")]
+pub struct SupplychainProposal {
     pub id: i64,
     pub proposal_type: String,
     pub circuit_id: String,
@@ -59,8 +59,8 @@ pub struct GameroomProposal {
 }
 
 #[derive(Insertable, PartialEq, Debug)]
-#[table_name = "gameroom_proposal"]
-pub struct NewGameroomProposal {
+#[table_name = "supplychain_proposal"]
+pub struct NewSupplychainProposal {
     pub proposal_type: String,
     pub circuit_id: String,
     pub circuit_hash: String,
@@ -73,7 +73,7 @@ pub struct NewGameroomProposal {
 
 #[derive(Queryable, Identifiable, Associations, PartialEq, Debug)]
 #[table_name = "proposal_vote_record"]
-#[belongs_to(GameroomProposal, foreign_key = "proposal_id")]
+#[belongs_to(SupplychainProposal, foreign_key = "proposal_id")]
 pub struct ProposalVoteRecord {
     pub id: i64,
     pub proposal_id: i64,
@@ -94,9 +94,9 @@ pub struct NewProposalVoteRecord {
 }
 
 #[derive(Queryable, Identifiable, Associations, PartialEq, Debug)]
-#[table_name = "gameroom_member"]
-#[belongs_to(Gameroom, foreign_key = "circuit_id")]
-pub struct GameroomMember {
+#[table_name = "supplychain_member"]
+#[belongs_to(Supplychain, foreign_key = "circuit_id")]
+pub struct SupplychainMember {
     pub id: i64,
     pub circuit_id: String,
     pub node_id: String,
@@ -107,8 +107,8 @@ pub struct GameroomMember {
 }
 
 #[derive(Insertable, PartialEq, Debug)]
-#[table_name = "gameroom_member"]
-pub struct NewGameroomMember {
+#[table_name = "supplychain_member"]
+pub struct NewSupplychainMember {
     pub circuit_id: String,
     pub node_id: String,
     pub endpoints: Vec<String>,
@@ -118,9 +118,9 @@ pub struct NewGameroomMember {
 }
 
 #[derive(Queryable, Identifiable, Associations, PartialEq, Debug)]
-#[table_name = "gameroom_service"]
-#[belongs_to(Gameroom, foreign_key = "circuit_id")]
-pub struct GameroomService {
+#[table_name = "supplychain_service"]
+#[belongs_to(Supplychain, foreign_key = "circuit_id")]
+pub struct SupplychainService {
     pub id: i64,
     pub circuit_id: String,
     pub service_id: String,
@@ -134,8 +134,8 @@ pub struct GameroomService {
 }
 
 #[derive(Insertable, PartialEq, Debug)]
-#[table_name = "gameroom_service"]
-pub struct NewGameroomService {
+#[table_name = "supplychain_service"]
+pub struct NewSupplychainService {
     pub circuit_id: String,
     pub service_id: String,
     pub service_type: String,
@@ -148,8 +148,8 @@ pub struct NewGameroomService {
 }
 
 #[derive(Queryable, Identifiable, Associations)]
-#[table_name = "gameroom_notification"]
-pub struct GameroomNotification {
+#[table_name = "supplychain_notification"]
+pub struct SupplychainNotification {
     pub id: i64,
     pub notification_type: String,
     pub requester: String,
@@ -160,8 +160,8 @@ pub struct GameroomNotification {
 }
 
 #[derive(Debug, Insertable)]
-#[table_name = "gameroom_notification"]
-pub struct NewGameroomNotification {
+#[table_name = "supplychain_notification"]
+pub struct NewSupplychainNotification {
     pub notification_type: String,
     pub requester: String,
     pub requester_node_id: String,
@@ -198,7 +198,7 @@ pub struct NewXoGame {
 }
 
 #[derive(Queryable, PartialEq, Debug)]
-pub struct ActiveGameroom {
+pub struct ActiveSupplychain {
     pub circuit_id: String,
     pub service_id: String,
     pub status: String,
