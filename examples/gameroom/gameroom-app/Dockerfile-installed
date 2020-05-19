@@ -15,7 +15,9 @@
 # build stage
 FROM node:lts-alpine as build-stage
 
-RUN apk update && apk add python g++ git make && rm -rf /var/cache/apk/*
+RUN echo -e "http://nl.alpinelinux.org/alpine/v3.5/main\nhttp://nl.alpinelinux.org/alpine/v3.11/community" > /etc/apk/repositories
+
+RUN apk update && apk add python g++ git make zeromq zeromq-dev && rm -rf /var/cache/apk/*
 WORKDIR /app
 COPY examples/gameroom/gameroom-app/package*.json ./
 RUN npm install
