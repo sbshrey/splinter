@@ -14,7 +14,9 @@
 
 # -------------=== splinterd docker build ===-------------
 
-FROM splintercommunity/splinter-dev:v3 as BUILDER
+#FROM splintercommunity/splinter-dev:v3 as BUILDER
+
+FROM splinter-dev as BUILDER
 
 ENV SPLINTER_FORCE_PANDOC=true
 

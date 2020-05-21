@@ -128,3 +128,17 @@ Splinter software is licensed under the [Apache License Version 2.0](LICENSE) so
 ## Code of Conduct
 
 Splinter operates under the [Cargill Code of Conduct](https://github.com/Cargill/code-of-conduct/blob/master/code-of-conduct.md).
+
+
+# My Notes
+
+steps to build and run
+
+replaced gameroom with supplychain
+
+`Cargo build`
+
+`docker build -f ci/splinter-dev -t splinter-dev .`
+
+`docker-compose -f examples/supplychain/docker-compose.yaml up --build`
+
