@@ -21,17 +21,15 @@ use gameroom_database::{
 };
 use openssl::hash::{hash, MessageDigest};
 use protobuf::Message;
-use splinter::admin::messages::{
-    CreateCircuit, CreateCircuitBuilder, SplinterNode, SplinterServiceBuilder,
-};
-use splinter::node_registry::Node;
+use splinter::admin::messages::{CreateCircuit, CreateCircuitBuilder, SplinterNode};
+use splinter::circuit::template::{CircuitCreateTemplate, DEFAULT_TEMPLATE_DIR};
 use splinter::protocol;
 use splinter::protos::admin::{
     CircuitManagementPayload, CircuitManagementPayload_Action as Action,
     CircuitManagementPayload_Header as Header,
 };
 
-use crate::application_metadata::ApplicationMetadata;
+use crate::config::NodeInfo;
 use crate::rest_api::{GameroomdData, RestApiResponseError};
 
 use super::{
@@ -93,11 +91,22 @@ impl ApiGameroomMember {
 pub async fn propose_gameroom(
     pool: web::Data<ConnectionPool>,
     create_gameroom: web::Json<CreateGameroomForm>,
-    node_info: web::Data<Node>,
+    node_info: web::Data<NodeInfo>,
     client: web::Data<Client>,
     splinterd_url: web::Data<String>,
     gameroomd_data: web::Data<GameroomdData>,
 ) -> HttpResponse {
+    let mut template = match CircuitCreateTemplate::from_yaml_file(&format!(
+        "{}/gameroom.yaml",
+        &DEFAULT_TEMPLATE_DIR
+    )) {
+        Ok(template) => template,
+        Err(err) => {
+            error!("Failed to load Gameroom template: {}", err);
+            return HttpResponse::InternalServerError().json(ErrorResponse::internal_error());
+        }
+    };
+
     let response = fetch_node_information(&create_gameroom.members, &splinterd_url, client).await;
 
     let nodes = match response {
@@ -126,87 +135,60 @@ pub async fn propose_gameroom(
         endpoints: node_info.endpoints.to_vec(),
     });
 
-    let scabbard_admin_keys = vec![gameroomd_data.get_ref().public_key.clone()];
-
-    let mut scabbard_args = vec![];
-    scabbard_args.push((
-        "admin_keys".into(),
-        match serde_json::to_string(&scabbard_admin_keys) {
-            Ok(s) => s,
-            Err(err) => {
-                debug!("Failed to serialize scabbard admin keys: {}", err);
-                return HttpResponse::InternalServerError().json(ErrorResponse::internal_error());
-            }
-        },
-    ));
-
-    let service_and_node_ids = members
+    let node_ids = nodes
         .iter()
-        .enumerate()
-        .map(|(member_number, node)| (format!("gr{:02}", member_number), node.node_id.to_string()));
+        .map(|node| node.identity.to_string())
+        .collect::<Vec<String>>()
+        .join(",");
+    let node_argument_value = format!("{},{}", node_info.identity, node_ids);
 
-    let all_service_ids = service_and_node_ids
-        .clone()
-        .map(|(service_id, _)| service_id);
-
-    let mut roster = vec![];
-    for (service_id, node_id) in service_and_node_ids {
-        let peer_services = match serde_json::to_string(
-            &all_service_ids
-                .clone()
-                .filter(|other_service_id| other_service_id != &service_id)
-                .collect::<Vec<_>>(),
-        ) {
-            Ok(s) => s,
-            Err(err) => {
-                debug!("Failed to serialize peer services: {}", err);
-                return HttpResponse::InternalServerError().json(ErrorResponse::internal_error());
-            }
-        };
-
-        let mut service_args = scabbard_args.clone();
-        service_args.push(("peer_services".into(), peer_services));
-
-        match SplinterServiceBuilder::new()
-            .with_service_id(&service_id)
-            .with_service_type("scabbard")
-            .with_allowed_nodes(&[node_id])
-            .with_arguments(&service_args)
-            .build()
-        {
-            Ok(service) => roster.push(service),
-            Err(err) => {
-                debug!("Failed to build SplinterService: {}", err);
-                return HttpResponse::InternalServerError().json(ErrorResponse::internal_error());
-            }
-        }
-    }
-
-    let application_metadata = match check_alias_uniqueness(pool, &create_gameroom.alias) {
-        Ok(()) => match ApplicationMetadata::new(&create_gameroom.alias, &scabbard_admin_keys)
-            .to_bytes()
-        {
-            Ok(bytes) => bytes,
-            Err(err) => {
-                debug!("Failed to serialize application metadata: {}", err);
-                return HttpResponse::InternalServerError().json(ErrorResponse::internal_error());
-            }
-        },
+    let alias = match check_alias_uniqueness(pool, &create_gameroom.alias) {
+        Ok(()) => &create_gameroom.alias,
         Err(err) => {
             return HttpResponse::BadRequest().json(ErrorResponse::bad_request(&err.to_string()));
         }
     };
 
-    let create_request = match CreateCircuitBuilder::new()
-        .with_roster(&roster)
-        .with_members(&members)
-        .with_circuit_management_type("gameroom")
-        .with_application_metadata(&application_metadata)
-        .build()
-    {
+    match template.set_argument_value("nodes", &node_argument_value) {
+        Ok(template) => template,
+        Err(err) => {
+            error!("Failed to set 'nodes' arg value: {}", err);
+            return HttpResponse::InternalServerError().json(ErrorResponse::internal_error());
+        }
+    };
+    match template.set_argument_value("signer_pub_key", &gameroomd_data.get_ref().public_key) {
+        Ok(template) => template,
+        Err(err) => {
+            error!("Failed to set 'signer_pub_key' arg value: {}", err);
+            return HttpResponse::InternalServerError().json(ErrorResponse::internal_error());
+        }
+    };
+
+    match template.set_argument_value("gameroom_name", alias) {
+        Ok(template) => template,
+        Err(err) => {
+            error!("Failed to set 'gameroom_name' arg value: {}", err);
+            return HttpResponse::InternalServerError().json(ErrorResponse::internal_error());
+        }
+    };
+
+    let mut create_circuit_builder = CreateCircuitBuilder::new();
+
+    create_circuit_builder = match template.apply_to_builder(create_circuit_builder) {
+        Ok(builder) => builder,
+        Err(err) => {
+            error!(
+                "Unable to apply circuit template to CreateCircuitBuilder: {}",
+                err
+            );
+            return HttpResponse::InternalServerError().json(ErrorResponse::internal_error());
+        }
+    };
+
+    let create_request = match create_circuit_builder.with_members(&members).build() {
         Ok(create_request) => create_request,
         Err(err) => {
-            debug!("Failed to build CreateCircuit: {}", err);
+            error!("Failed to build CreateCircuit: {}", err);
             return HttpResponse::InternalServerError().json(ErrorResponse::internal_error());
         }
     };
@@ -228,11 +210,11 @@ async fn fetch_node_information(
     node_ids: &[String],
     splinterd_url: &str,
     client: web::Data<Client>,
-) -> Result<Vec<Node>, RestApiResponseError> {
+) -> Result<Vec<NodeResponse>, RestApiResponseError> {
     let node_ids = node_ids.to_owned();
     let mut response = client
         .get(&format!(
-            "{}/admin/nodes?limit={}",
+            "{}/registry/nodes?limit={}",
             splinterd_url,
             std::i64::MAX
         ))
@@ -252,8 +234,8 @@ async fn fetch_node_information(
 
     match response.status() {
         StatusCode::OK => {
-            let list_reponse: SuccessResponse<Vec<Node>> =
-                serde_json::from_slice(&body).map_err(|err| {
+            let list_reponse: SuccessResponse<Vec<NodeResponse>> = serde_json::from_slice(&body)
+                .map_err(|err| {
                     RestApiResponseError::InternalError(format!(
                         "Failed to parse response body {}",
                         err
@@ -297,6 +279,13 @@ async fn fetch_node_information(
             Err(RestApiResponseError::InternalError(message))
         }
     }
+}
+
+/// Represents a node as presented by the Splinter REST API.
+#[derive(Clone, Deserialize, Serialize)]
+struct NodeResponse {
+    identity: String,
+    endpoints: Vec<String>,
 }
 
 fn check_alias_uniqueness(

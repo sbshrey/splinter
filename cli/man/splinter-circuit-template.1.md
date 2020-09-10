@@ -1,4 +1,9 @@
 % SPLINTER-CIRCUIT-TEMPLATE(1) Cargill, Incorporated | Splinter Commands
+<!--
+  Copyright 2018-2020 Cargill Incorporated
+  Licensed under Creative Commons Attribution 4.0 International License
+  https://creativecommons.org/licenses/by/4.0/
+-->
 
 NAME
 ====
@@ -22,6 +27,9 @@ name.
 A Scabbard circuit template, named `scabbard`, is available by default (packaged
 with the Splinter CLI). This template can be used as a model for other circuit
 templates.
+
+All available templates are located in the default circuit templates directory,
+`/usr/share/splinter/circuit-templates`.
 
 FLAGS
 =====
@@ -56,4 +64,4 @@ SEE ALSO
 | `splinter-circuit-template-list(1)`
 | `splinter-circuit-template-show(1)`
 |
-| Splinter documentation: https://github.com/Cargill/splinter-docs/blob/master/docs/index.md
+| Splinter documentation: https://www.splinter.dev/docs/0.5/

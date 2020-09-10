@@ -12,10 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//! An intermediate representation of the configuration values, used to take the
+//! configuration values from different sources into a common representation.
+
 use std::time::Duration;
 
-/// ConfigSource displays the source of configuration values, used to identify which of the various
-/// config modules were used to create a particular PartialConfig object.
+/// `ConfigSource` displays the source of configuration values, used to identify which of the various
+/// config modules were used to create a particular `PartialConfig` object.
 #[derive(Deserialize, Debug, Clone, PartialEq)]
 pub enum ConfigSource {
     Toml { file: String },
@@ -24,8 +27,8 @@ pub enum ConfigSource {
     CommandLine,
 }
 
-/// PartialConfig is an intermediate representation of configuration values, used when combining
-/// several sources. As such, all values of the PartialConfig are options as it is not necessary
+/// `PartialConfig` is an intermediate representation of configuration values, used when combining
+/// several sources. As such, all values of the `PartialConfig` are options as it is not necessary
 /// to provide all values from a single source.
 #[derive(Deserialize, Debug)]
 pub struct PartialConfig {
@@ -38,13 +41,14 @@ pub struct PartialConfig {
     tls_client_key: Option<String>,
     tls_server_cert: Option<String>,
     tls_server_key: Option<String>,
+    #[cfg(feature = "service-endpoint")]
     service_endpoint: Option<String>,
     network_endpoints: Option<Vec<String>>,
     advertised_endpoints: Option<Vec<String>>,
     peers: Option<Vec<String>>,
     node_id: Option<String>,
     display_name: Option<String>,
-    bind: Option<String>,
+    rest_api_endpoint: Option<String>,
     #[cfg(feature = "database")]
     database: Option<String>,
     registries: Option<Vec<String>>,
@@ -59,6 +63,7 @@ pub struct PartialConfig {
     enable_biome: Option<bool>,
     #[cfg(feature = "rest-api-cors")]
     whitelist: Option<Vec<String>>,
+    strict_ref_counts: Option<bool>,
 }
 
 impl PartialConfig {
@@ -74,13 +79,14 @@ impl PartialConfig {
             tls_client_key: None,
             tls_server_cert: None,
             tls_server_key: None,
+            #[cfg(feature = "service-endpoint")]
             service_endpoint: None,
             network_endpoints: None,
             advertised_endpoints: None,
             peers: None,
             node_id: None,
             display_name: None,
-            bind: None,
+            rest_api_endpoint: None,
             #[cfg(feature = "database")]
             database: None,
             registries: None,
@@ -95,6 +101,7 @@ impl PartialConfig {
             enable_biome: None,
             #[cfg(feature = "rest-api-cors")]
             whitelist: None,
+            strict_ref_counts: None,
         }
     }
 
@@ -134,6 +141,7 @@ impl PartialConfig {
         self.tls_server_key.clone()
     }
 
+    #[cfg(feature = "service-endpoint")]
     pub fn service_endpoint(&self) -> Option<String> {
         self.service_endpoint.clone()
     }
@@ -158,8 +166,8 @@ impl PartialConfig {
         self.display_name.clone()
     }
 
-    pub fn bind(&self) -> Option<String> {
-        self.bind.clone()
+    pub fn rest_api_endpoint(&self) -> Option<String> {
+        self.rest_api_endpoint.clone()
     }
 
     #[cfg(feature = "database")]
@@ -209,7 +217,11 @@ impl PartialConfig {
         self.whitelist.clone()
     }
 
-    /// Adds a `config_dir` value to the PartialConfig object.
+    pub fn strict_ref_counts(&self) -> Option<bool> {
+        self.strict_ref_counts
+    }
+
+    /// Adds a `config_dir` value to the `PartialConfig` object.
     ///
     /// # Arguments
     ///
@@ -220,8 +232,7 @@ impl PartialConfig {
         self
     }
 
-    #[allow(dead_code)]
-    /// Adds a `storage` value to the PartialConfig object.
+    /// Adds a `storage` value to the `PartialConfig` object.
     ///
     /// # Arguments
     ///
@@ -232,8 +243,7 @@ impl PartialConfig {
         self
     }
 
-    #[allow(dead_code)]
-    /// Adds a `tls_cert_dir` value to the PartialConfig object.
+    /// Adds a `tls_cert_dir` value to the `PartialConfig` object.
     ///
     /// # Arguments
     ///
@@ -244,8 +254,7 @@ impl PartialConfig {
         self
     }
 
-    #[allow(dead_code)]
-    /// Adds a `tls_ca_file` value to the  PartialConfig object.
+    /// Adds a `tls_ca_file` value to the  `PartialConfig` object.
     ///
     /// # Arguments
     ///
@@ -256,8 +265,7 @@ impl PartialConfig {
         self
     }
 
-    #[allow(dead_code)]
-    /// Adds a `tls_client_cert` value to the PartialConfig object.
+    /// Adds a `tls_client_cert` value to the `PartialConfig` object.
     ///
     /// # Arguments
     ///
@@ -269,8 +277,7 @@ impl PartialConfig {
         self
     }
 
-    #[allow(dead_code)]
-    /// Adds a `tls_client_key` value to the PartialConfig object.
+    /// Adds a `tls_client_key` value to the `PartialConfig` object.
     ///
     /// # Arguments
     ///
@@ -281,8 +288,7 @@ impl PartialConfig {
         self
     }
 
-    #[allow(dead_code)]
-    /// Adds a `tls_server_cert` value to the PartialConfig object.
+    /// Adds a `tls_server_cert` value to the `PartialConfig` object.
     ///
     /// # Arguments
     ///
@@ -294,8 +300,7 @@ impl PartialConfig {
         self
     }
 
-    #[allow(dead_code)]
-    /// Adds a `tls_server_key` value to the PartialConfig object.
+    /// Adds a `tls_server_key` value to the `PartialConfig` object.
     ///
     /// # Arguments
     ///
@@ -306,20 +311,19 @@ impl PartialConfig {
         self
     }
 
-    #[allow(dead_code)]
-    /// Adds a `service_endpoint` value to the PartialConfig object.
+    /// Adds a `service_endpoint` value to the `PartialConfig` object.
     ///
     /// # Arguments
     ///
     /// * `service_endpoint` - Endpoint used for service to daemon communication.
     ///
+    #[cfg(feature = "service-endpoint")]
     pub fn with_service_endpoint(mut self, service_endpoint: Option<String>) -> Self {
         self.service_endpoint = service_endpoint;
         self
     }
 
-    #[allow(dead_code)]
-    /// Adds a `network_endpoints` value to the PartialConfig object.
+    /// Adds a `network_endpoints` value to the `PartialConfig` object.
     ///
     /// # Arguments
     ///
@@ -330,8 +334,7 @@ impl PartialConfig {
         self
     }
 
-    #[allow(dead_code)]
-    /// Adds a `advertised_endpoints` value to the PartialConfig object.
+    /// Adds a `advertised_endpoints` value to the `PartialConfig` object.
     ///
     /// # Arguments
     ///
@@ -342,8 +345,7 @@ impl PartialConfig {
         self
     }
 
-    #[allow(dead_code)]
-    /// Adds a `peers` value to the PartialConfig object.
+    /// Adds a `peers` value to the `PartialConfig` object.
     ///
     /// # Arguments
     ///
@@ -354,8 +356,7 @@ impl PartialConfig {
         self
     }
 
-    #[allow(dead_code)]
-    /// Adds a `node_id` value to the PartialConfig object.
+    /// Adds a `node_id` value to the `PartialConfig` object.
     ///
     /// # Arguments
     ///
@@ -366,8 +367,7 @@ impl PartialConfig {
         self
     }
 
-    #[allow(dead_code)]
-    /// Adds a `display_name` value to the PartialConfig object.
+    /// Adds a `display_name` value to the `PartialConfig` object.
     ///
     /// # Arguments
     ///
@@ -378,20 +378,19 @@ impl PartialConfig {
         self
     }
 
-    #[allow(dead_code)]
-    /// Adds a `bind` value to the PartialConfig object.
+    /// Adds a `rest_api_endpoint` value to the PartialConfig object.
     ///
     /// # Arguments
     ///
-    /// * `bind` - Connection endpoint for REST API.
+    /// * `rest_api_endpoint` - Connection endpoint for REST API.
     ///
-    pub fn with_bind(mut self, bind: Option<String>) -> Self {
-        self.bind = bind;
+    pub fn with_rest_api_endpoint(mut self, rest_api_endpoint: Option<String>) -> Self {
+        self.rest_api_endpoint = rest_api_endpoint;
         self
     }
 
     #[cfg(feature = "database")]
-    /// Adds a `database` value to the PartialConfig object, when the `database`
+    /// Adds a `database` value to the `PartialConfig` object, when the `database`
     /// feature flag is used.
     ///
     /// # Arguments
@@ -403,20 +402,18 @@ impl PartialConfig {
         self
     }
 
-    #[allow(dead_code)]
-    /// Adds a `registries` value to the PartialConfig object.
+    /// Adds a `registries` value to the `PartialConfig` object.
     ///
     /// # Arguments
     ///
-    /// * `registries` - A list of read-only node registries.
+    /// * `registries` - A list of read-only Splinter registries.
     ///
     pub fn with_registries(mut self, registries: Option<Vec<String>>) -> Self {
         self.registries = registries;
         self
     }
 
-    #[allow(dead_code)]
-    /// Adds a `registry_auto_refresh` value to the PartialConfig object.
+    /// Adds a `registry_auto_refresh` value to the `PartialConfig` object.
     ///
     /// # Arguments
     ///
@@ -428,8 +425,7 @@ impl PartialConfig {
         self
     }
 
-    #[allow(dead_code)]
-    /// Adds a `registry_forced_refresh` value to the PartialConfig object.
+    /// Adds a `registry_forced_refresh` value to the `PartialConfig` object.
     ///
     /// # Arguments
     ///
@@ -441,8 +437,7 @@ impl PartialConfig {
         self
     }
 
-    #[allow(dead_code)]
-    /// Adds a `heartbeat` value to the PartialConfig object.
+    /// Adds a `heartbeat` value to the `PartialConfig` object.
     ///
     /// # Arguments
     ///
@@ -453,8 +448,7 @@ impl PartialConfig {
         self
     }
 
-    #[allow(dead_code)]
-    /// Adds a `timeout` value to the PartialConfig object.
+    /// Adds a `timeout` value to the `PartialConfig` object.
     ///
     /// # Arguments
     ///
@@ -469,8 +463,7 @@ impl PartialConfig {
         self
     }
 
-    #[allow(dead_code)]
-    /// Adds a `state_dir` value to the PartialConfig object.
+    /// Adds a `state_dir` value to the `PartialConfig` object.
     ///
     /// # Arguments
     ///
@@ -481,8 +474,7 @@ impl PartialConfig {
         self
     }
 
-    #[allow(dead_code)]
-    /// Adds a `tls_insecure` value to the PartialConfig object.
+    /// Adds a `tls_insecure` value to the `PartialConfig` object.
     ///
     /// # Arguments
     ///
@@ -493,8 +485,7 @@ impl PartialConfig {
         self
     }
 
-    #[allow(dead_code)]
-    /// Adds a `no-tls` value to the PartialConfig object.
+    /// Adds a `no-tls` value to the `PartialConfig` object.
     ///
     /// # Arguments
     ///
@@ -506,7 +497,7 @@ impl PartialConfig {
     }
 
     #[cfg(feature = "biome")]
-    /// Adds a `enable_biome` value to the PartialConfig object.
+    /// Adds a `enable_biome` value to the `PartialConfig` object.
     ///
     /// # Arguments
     ///
@@ -518,7 +509,7 @@ impl PartialConfig {
     }
 
     #[cfg(feature = "rest-api-cors")]
-    /// Adds a `whitelist` value to the PartialConfig object.
+    /// Adds a `whitelist` value to the `PartialConfig` object.
     ///
     /// # Arguments
     ///
@@ -526,6 +517,17 @@ impl PartialConfig {
     ///
     pub fn with_whitelist(mut self, whitelist: Option<Vec<String>>) -> Self {
         self.whitelist = whitelist;
+        self
+    }
+
+    /// Adds a `strict_ref_counts` value to the `PartialConfig` object.
+    ///
+    /// # Arguments
+    ///
+    /// * `strict_ref_counts` - Turns on panics if peer reference counting fails
+    ///
+    pub fn with_strict_ref_counts(mut self, strict_ref_counts: Option<bool>) -> Self {
+        self.strict_ref_counts = strict_ref_counts;
         self
     }
 }

@@ -12,18 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use super::super::{yaml_parser::v1, CircuitTemplateError, CreateCircuitBuilder};
+//! Provides functionality to set a `CreateCircuitBuilder` `management_type`.
 
+use super::super::{yaml_parser::v1, CircuitTemplateError};
+
+/// Data structure holding the circuit's intended `management_type`.
 pub(super) struct CircuitManagement {
     management_type: String,
 }
 
 impl CircuitManagement {
-    pub fn apply_rule(
-        &self,
-        builder: CreateCircuitBuilder,
-    ) -> Result<CreateCircuitBuilder, CircuitTemplateError> {
-        Ok(builder.with_circuit_management_type(&self.management_type))
+    /// Adds the `management_type` to the provided `CreateCircuitBuilder`.
+    pub fn apply_rule(&self) -> Result<String, CircuitTemplateError> {
+        Ok(self.management_type.to_string())
     }
 }
 

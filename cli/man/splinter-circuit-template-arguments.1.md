@@ -1,4 +1,9 @@
 % SPLINTER-CIRCUIT-TEMPLATE-ARGUMENTS(1) Cargill, Incorporated | Splinter Commands
+<!--
+  Copyright 2018-2020 Cargill Incorporated
+  Licensed under Creative Commons Attribution 4.0 International License
+  https://creativecommons.org/licenses/by/4.0/
+-->
 
 NAME
 ====
@@ -16,6 +21,9 @@ Circuit templates help simplify the process of creating new circuits with the
 `splinter circuit propose` command. Circuit template arguments are required when
 building a circuit from the template. This command lists the arguments that are
 defined in the specified circuit template.
+
+All available templates are located in the circuit templates directory,
+`/usr/share/splinter/circuit-templates`.
 
 FLAGS
 =====
@@ -36,7 +44,9 @@ FLAGS
 ARGUMENTS
 =========
 `TEMPLATE-NAME`
-: Circuit template that contains the arguments of interest.
+: Name of the circuit template containing the arguments of interest. The
+  template file must exist in the circuit template directory,
+    `/usr/share/splinter/circuit-templates`.
 
 EXAMPLES
 ========
@@ -67,4 +77,4 @@ SEE ALSO
 | `splinter-circuit-template-list(1)`
 | `splinter-circuit-template-show(1)`
 |
-| Splinter documentation: https://github.com/Cargill/splinter-docs/blob/master/docs/index.md
+| Splinter documentation: https://www.splinter.dev/docs/0.5/

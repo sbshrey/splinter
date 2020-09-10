@@ -51,7 +51,6 @@
 
 mod control;
 mod incoming;
-#[cfg(feature = "matrix")]
 mod matrix;
 mod outgoing;
 mod pool;
@@ -63,18 +62,16 @@ use std::io;
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
 
-#[cfg(feature = "matrix")]
-pub use crate::matrix::Envelope;
 use crate::mesh::control::Control;
 pub use crate::mesh::control::{AddError, RemoveError};
 use crate::mesh::incoming::Incoming;
-#[cfg(feature = "matrix")]
 pub use crate::mesh::matrix::{
     MeshLifeCycle, MeshMatrixReceiver, MeshMatrixSender, MeshMatrixShutdown,
 };
 use crate::mesh::outgoing::Outgoing;
+pub use crate::transport::matrix::ConnectionMatrixEnvelope as Envelope;
 
-pub use crate::collections::BiHashMap;
+use crate::collections::BiHashMap;
 use crate::mesh::reactor::Reactor;
 use crate::transport::Connection;
 
@@ -83,33 +80,6 @@ use crate::transport::Connection;
 pub(in crate::mesh) enum InternalEnvelope {
     Message { id: usize, payload: Vec<u8> },
     Shutdown,
-}
-
-#[cfg(not(feature = "matrix"))]
-/// Wrapper around payload to include connection id
-#[derive(Debug, Default, PartialEq)]
-pub struct Envelope {
-    id: String,
-    payload: Vec<u8>,
-}
-
-#[cfg(not(feature = "matrix"))]
-impl Envelope {
-    pub fn new(id: String, payload: Vec<u8>) -> Self {
-        Envelope { id, payload }
-    }
-
-    pub fn id(&self) -> &str {
-        &self.id
-    }
-
-    pub fn payload(&self) -> &[u8] {
-        &self.payload
-    }
-
-    pub fn take_payload(self) -> Vec<u8> {
-        self.payload
-    }
 }
 
 struct MeshState {
@@ -170,9 +140,9 @@ impl Mesh {
         connection: Box<dyn Connection>,
         unique_id: String,
     ) -> Result<usize, AddError> {
+        let mut state = self.state.write().map_err(|_| AddError::PoisonedLock)?;
         let outgoing = self.ctrl.add(connection)?;
         let mesh_id = outgoing.id();
-        let mut state = self.state.write().map_err(|_| AddError::PoisonedLock)?;
 
         state.outgoings.insert(mesh_id, outgoing);
         state.unique_ids.insert(unique_id, mesh_id);
@@ -199,13 +169,13 @@ impl Mesh {
     /// Send the envelope on the mesh.
     ///
     /// This is a convenience function and is equivalent to
-    /// `mesh.outgoing(envelope.id()).send(envelope.take_payload())`.
+    /// `mesh.outgoing(envelope.id()).send(Vec::from(envelope))`.
     pub fn send(&self, envelope: Envelope) -> Result<(), SendError> {
         let state = &self.state.read().map_err(|_| SendError::PoisonedLock)?;
         let id = envelope.id().to_string();
         if let Some(mesh_id) = state.unique_ids.get_by_key(&id) {
             match state.outgoings.get(mesh_id) {
-                Some(ref outgoing) => match outgoing.send(envelope.take_payload()) {
+                Some(ref outgoing) => match outgoing.send(Vec::from(envelope)) {
                     Ok(()) => Ok(()),
                     Err(err) => Err(SendError::from_outgoing_send_error(err, id)),
                 },
@@ -265,25 +235,25 @@ impl Mesh {
         }
     }
 
-    #[cfg(feature = "matrix")]
+    /// Creates a MeshLifeCycle that can be used to add and remove connection from this Mesh
     pub fn get_life_cycle(&self) -> MeshLifeCycle {
         let mesh = self.clone();
         MeshLifeCycle::new(mesh)
     }
 
-    #[cfg(feature = "matrix")]
+    /// Creates a MeshMatrixSender that can be used to send messages over through this Mesh
     pub fn get_sender(&self) -> MeshMatrixSender {
         let mesh = self.clone();
         MeshMatrixSender::new(mesh)
     }
 
-    #[cfg(feature = "matrix")]
+    /// Creates a MeshMatrixReceiver that can be used to receives message from this Mesh
     pub fn get_receiver(&self) -> MeshMatrixReceiver {
         let mesh = self.clone();
         MeshMatrixReceiver::new(mesh)
     }
 
-    #[cfg(feature = "matrix")]
+    /// Creates a MeshMatrixShutdown to shutdown this Mesh instance
     pub fn get_matrix_shutdown(&self) -> MeshMatrixShutdown {
         MeshMatrixShutdown::new(self.shutdown_signaler())
     }

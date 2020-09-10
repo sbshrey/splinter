@@ -17,14 +17,12 @@ crates := '\
     splinterd \
     cli \
     client \
-    services/scabbard \
+    services/scabbard/cli \
+    services/scabbard/libscabbard \
     services/health \
     examples/gameroom/database \
     examples/gameroom/daemon \
     examples/gameroom/cli \
-    examples/private_counter/cli \
-    examples/private_counter/service \
-    examples/private_xo \
     '
 
 features := '\

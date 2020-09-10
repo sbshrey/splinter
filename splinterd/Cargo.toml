@@ -14,7 +14,7 @@
 
 [package]
 name = "splinter-daemon"
-version = "0.3.17"
+version = "0.5.1"
 authors = ["Cargill Incorporated"]
 edition = "2018"
 license = "Apache-2.0"
@@ -38,14 +38,23 @@ health = { path = "../services/health", optional = true }
 log = "0.4"
 openssl = { version = "0.10", optional = true }
 protobuf = "2"
+rand = "0.7"
 serde = "1.0.80"
 serde_derive = "1.0.80"
 tempdir = "0.3"
 toml = "0.5"
 
+[dependencies.scabbard]
+path = "../services/scabbard/libscabbard"
+features = [
+  "rest-api",
+  "rest-api-actix",
+]
+
 [dependencies.splinter]
 path = "../libsplinter"
 features = [
+  "registry",
   "registry-remote",
   "rest-api",
   "rest-api-actix",
@@ -54,10 +63,9 @@ features = [
 
 [features]
 default = [
-    "config-command-line",
-    "config-default",
-    "config-env-var",
-    "config-toml",
+    "biome",
+    "biome-credentials",
+    "biome-key-management",
 ]
 
 stable = [
@@ -69,24 +77,22 @@ experimental = [
     # The experimental feature extends stable:
     "stable",
     # The following features are experimental:
-    "biome",
-    "biome-credentials",
-    "biome-key-management",
     "health",
     "service-arg-validation",
+    "service-endpoint",
     "ws-transport",
 ]
 
-biome = ["splinter/biome", "database"]
+biome = ["splinter/biome", "splinter/store-factory", "database"]
 biome-credentials = ["splinter/biome-credentials", "biome"]
 biome-key-management = ["splinter/biome-key-management", "biome"]
-config-default = []
-config-command-line = []
-config-env-var = []
-config-toml = []
-database = ["splinter/postgres"]
+database = ["splinter/postgres", "splinter/sqlite"]
 rest-api-cors = ["splinter/rest-api-cors"]
-service-arg-validation = ["splinter/service-arg-validation"]
+service-arg-validation = [
+    "scabbard/service-arg-validation",
+    "splinter/service-arg-validation",
+]
+service-endpoint = []
 ws-transport = ["splinter/ws-transport"]
 
 [package.metadata.deb]
@@ -94,7 +100,7 @@ maintainer = "The Splinter Team"
 depends = "$auto"
 assets = [
     ["packaging/man/*.1", "/usr/share/man/man1", "644"],
-    ["packaging/nodes.yaml.example", "/etc/splinter/nodes.yaml.example", "644"],
+    ["packaging/registry.yaml.example", "/etc/splinter/registry.yaml.example", "644"],
     ["packaging/splinterd.toml.example", "/etc/splinter/splinterd.toml.example", "644"],
     ["packaging/systemd/splinterd", "/etc/default/splinterd", "644"],
     ["packaging/systemd/splinterd.service", "/lib/systemd/system/splinterd.service", "644"],

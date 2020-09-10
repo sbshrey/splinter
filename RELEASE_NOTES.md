@@ -1,5 +1,334 @@
 # Release Notes
 
+## Changes in Splinter 0.3.18
+
+### Deprecations and Breaking Changes
+
+* The default network endpoint for `splinterd` now contains a TLS protocol
+  prefix, `tcps://`. When starting `splinterd` with the `--no-tls` flag, a valid
+  TCP endpoint must be provided (with the `network_endpoint` configuration
+    setting or `--network-endpoint`  command option). Using the default network
+    endpoint with the TLS protocol prefix will cause `splinterd` to fail.
+
+* The `splinterd`  `service-endpoint` configuration setting and
+  `service_endpoint` command option are now available only with the experimental
+  `service-endpoint` feature. The command option and config setting no longer
+  have an effect if the `service-endpoint` feature is not enabled.
+
+* The `PeerManager` and its related components have been moved to the
+  `splinter::peer` module.
+
+For upgrade information, see
+[Upgrading to Splinter 0.3.18 from Splinter 0.3.17](https://github.com/Cargill/splinter-docs/blob/master/docs/upgrading/splinter-v0.3.18-from-v0.3.17.md).
+
+### libsplinter
+
+* Fix a bug where the Transact scheduler was not shut down if a transaction was
+  invalid.
+
+* Update the peer manager to handle the case where two peers connect to each
+  other simultaneously.
+
+* Fix a bug where a failure to authorize on peer reconnection would result in
+  retrying authorization indefinitely. This failure now causes the connection to
+  be removed.
+
+* Update the peer manager to remove inbound connections for a peer when it is
+  disconnected, then retry connecting to the peer's endpoints.
+
+* Updated `GET /ws/admin/register/{type}` endpoint to check if the admin service
+  is running before creating a websocket connection. If it is not running, the
+  endpoint now returns a 503 service unavailable response.
+
+* Add `on_reconnect` callback to `WebsocketClient` that is called before
+  attempting to reconnect to a server.
+
+* Move the peer manager from the `splinter::network::peer_manager` module to the
+  `splinter::peer` module.
+
+### splinterd
+
+* Change the default service and network endpoints from TCP to TLS and require a
+  valid TCP endpoint when using the `--no-tls` flag.
+
+* Add the experimental `service-endpoint` feature and use it to guard the
+  `--service-endpoint` CLI option and `service_endpoint` configuration setting.
+  The option and setting no longer have an effect if the `service-endpoint`
+  feature is not enabled.
+
+* Remove the following features as compilation options so they are always
+  compiled:
+    - `config-command-line`
+    - `config-default`
+    - `config-env-var`
+    - `config-toml`
+
+### Splinter CLI
+
+* Set crate dependencies to log level `Warn` to reduce noise in the logs.
+
+### Scabbard
+
+* Add the following to support checking a scabbard service's current state root
+  hash:
+    - `ScabbardState::current_state_root` method
+    - `Scabbard::get_current_state_root` method
+    - `GET /state_root` REST API endpoint
+    - `ScabbardClient::get_current_state_root` method
+    - `scabbard state root` CLI subcommand
+
+### Gameroom
+
+* Update gameroom application to wait for `/submit` response and display any
+  error messages from the response.
+
+* Update docker compose files to use static IP addresses for all containers.
+  This fixes a bug where proxy IP addresses would become out-of-date when
+  containers were restarted.
+
+* Fix a bug that made it impossible to create new gamerooms after an instance of
+  gameroomd reconnected to a previously restarted splinter node.
+
+### Private Counter and Private XO
+
+* Remove the Private Counter and Private XO example applications from the
+  `splinter` repository. These applications are incomplete examples that were
+  maintained primarily to test external services; external services are now
+  considered experimental, so the applications are no longer needed.
+
+### Miscellaneous
+
+* Update several error and log messages to be more descriptive.
+
+
+## Changes in Splinter 0.3.17
+
+### Highlights
+
+* Connection handling has been updated to use a dedicated connection manager,
+  which provides consistent reconnection and heartbeat logic across both network
+  and component connections.
+
+* Peering is now performed at the networking layer, rather than by the admin
+  service. The peer manager allows other components (such as the admin service)
+  to request the creation of a peer; these requests are counted to make sure
+  connections remain as long as needed. A peer interconnect component provides
+  the capability for higher-level components to send messages to peers without
+  directly interacting with the underlying connection layer.
+
+* The Scabbard service, along with its client and other associated code, has
+  been moved from the `splinter` crate to a new
+  [`scabbard` crate](https://crates.io/crates/scabbard).
+
+* The key registry and node registry have been merged into a single registry.
+  All nodes in the registry now have a list of keys that is used by the admin
+  service to verify circuit management permissions.
+
+### Deprecations and Breaking Changes
+
+* The scabbard service is no longer provided by the `splinter` crate. The
+  scabbard service and its client now belong to the `scabbard` crate.
+
+* The names of several `splinterd` configuration settings and CLI options have
+  changed. For more information, see the [`splinterd` section](#splinterd).
+
+* Admin services now negotiate the protocol version after authorization. This
+  change breaks compatibility between the 0.3.17 release and previous releases.
+
+* The key registry has been removed. Its functionality has been replaced by a
+  new `keys` entry for nodes in the Splinter registry. Registry configurations
+  will need to be updated. (See the upgrade document, linked below, for more
+  details.)
+
+* The `/admin/nodes` endpoints have been moved to `/registry/nodes`.
+
+* The Gameroom daemon (`gameroomd`) now uses Biome for user and credential
+  management. There is a new "migrate database" step to correctly populate the
+  Biome tables in the database. In addition, the Splinter nodes backing
+  `gameroomd` need to be run with Biome enabled and must be connected to a
+  database. Gameroom's docker-compose files have been updated to handle these
+  changes. (See the upgrade document, linked below, for information on starting
+  Gameroom manually.)
+
+For upgrade information, see
+[Upgrading to Splinter 0.3.17 from Splinter 0.3.16](https://github.com/Cargill/splinter-docs/blob/master/docs/upgrading/splinter-v0.3.17-from-v0.3.16.md).
+
+### libsplinter
+
+* Remove the `matrix` feature as a compilation option. This code is now always
+  compiled.
+
+* Make the `service::rest_api` module public.
+
+* Update circuit-definition serialization to include the node IDs.
+
+* Make the `collections` module private to the `splinter` crate.
+
+### Admin Service
+
+* Update the admin service to log (but otherwise ignore) errors when restarting
+  services.
+
+* Add the `AdminKeyVerifier` trait (with an implementation for `RegistryReader`)
+  for verifying proposal/vote permissions.
+
+* Fix a bug in the service restart process that caused a deadlock in some
+  scenarios.
+
+* Add a `state_dir` argument to configure where the admin service stores files.
+
+#### Splinter Registry
+
+* Add the `registry` feature for optionally compiling the Splinter registry.
+
+* Change the names of the following items:
+
+  - Module `node_registry` is now `registry`
+  - `NodeRegistryError` is now `RegistryError`
+  - `NodeRegistryReader` is now `RegistryReader`
+  - `NodeRegistryWriter` is now `RegistryWriter`
+  - `RwNodeRegistry` is now `RwRegistry`
+  - `LocalYamlNodeRegistry` is now `LocalYamlRegistry`
+  - `RemoteYamlNodeRegistry` is now `RemoteYamlRegistry`
+  - `UnifiedNodeRegistry` is now `UnifiedRegistry`
+
+* Add methods for cloning an `RwRegistry` as a `Box<RegistryReader>` or
+  `Box<RegistryWriter>`.
+
+* Update `NodeIter` to be an `ExactSizeIterator`.
+
+* Update `LocalYamlRegistry` to reload changes if its file is modified.
+
+* Move `/admin/nodes` endpoints to `/registry/nodes` and introduce a
+  `REGISTRY_PROTOCOL_VERSION` version number for `/registry` endpoints.
+
+### splinterd
+
+* Change the names of `splinterd` command options and configuration settings to
+  be consistent.
+
+  Configuration settings:
+    - `admin_service_coordinator_timeout` is now `admin_timeout`
+    - `bind` is now `rest_api_endpoint`
+    - `heartbeat_interval` is now `heartbeat`
+    - `registry_auto_refresh_interval` is now `registry_auto_refresh`
+    - `registry_forced_refresh_interval` is now `registry_forced_refresh`
+
+  Command options:
+    - `--advertised-endpoint` is now `--advertised-endpoints`
+    - `--bind` is now `--rest-api-endpoint`
+    - `--network-endpoint` is now `--network-endpoints`
+    - `--peer` is now `--peers`
+    - `--registry` is now `--registries`
+
+  For more information, see
+  [Upgrading to Splinter 0.3.17 from Splinter 0.3.16](https://github.com/Cargill/splinter-docs/blob/master/docs/upgrading/splinter-v0.3.17-from-v0.3.16.md).
+
+* Add the `--config-dir` CLI option and `SPLINTER_CONFIG_DIR` environment
+  variable for configuring the location of a `splinterd` configuration file to
+  load.
+
+* Allow the following TLS-related configuration settings and CLI options to use
+  absolute or relative paths:
+    - `tls_ca_file` and `--tls-ca-file`
+    - `tls_client_cert` and `--tls-client-cert`
+    - `tls_client_key` and `--tls-client-key`
+    - `tls_server_cert` and `--tls-server-cert`
+    - `tls_server_key` and `--tls-server-key`
+
+* Move the `biome`, `biome-key-management`, and `biome-credentials` features
+  from `experimental` to `default`.
+
+* Fix a typo in the `--enable-biome` option that was causing the flag to never
+  be set to true.
+
+* Add a context string to the `UserError::IoError` variant to provide more
+  details when one of these errors is encountered.
+
+* Make the `node_id` configuration setting and CLI option (`--node-id`)
+  optional, and provide a randomly generated default. An automatically generated
+  node ID is an ‘n’ followed by a random five-digit number, such as `n12345`.
+
+* Add a `SPLINTER_HOME` environment variable. When set, other directory
+  configuration settings (or command options) do not need to be used to change
+  the location of the TLS certificate directory, state directory, and config
+  directory. This variable sets the following items:
+    - `tls_cert_dir` is set to `$SPLINTER_HOME/certs`
+    - `state_dir` is set to `$SPLINTER_HOME/data`
+    - `config_dir` is set to `$SPLINTER_HOME/etc`
+
+* Add a new `--state-dir` option to the `splinterd` CLI. This option configures
+  the directory location of registry files if the `--storage` configuration
+  option is set to `yaml`. The `--state-dir` CLI option overrides the default
+  value (`/var/lib/splinter/`) and any value set by the `SPLINTER_STATE_DIR`
+  environment variable.
+
+### `splinter` CLI
+
+* Add the `splinter registry build` command for constructing Splinter registry
+  files. This command queries a `splinterd` `/status` endpoint for node
+  information, then combines this information with user-specified public key
+  files to add the node to a registry file.
+
+* Move the  `database` and `database-migrate-biome` features from `experimental`
+  to `default`.
+
+### Scabbard
+
+* Move the `client` feature (formerly the `scabbard-client` feature in
+  `libsplinter`) from `experimental` to `stable`.
+
+* Remove the `scabbard-get-state` feature as a compilation option. This
+  functionality is now always enabled.
+
+* Rename the scabbard client's `Error` struct to `ScabbardClientError`.
+
+* Update the `ScabbardClient::submit` method to take `Duration` rather than a
+  `u64` of seconds.
+
+* Update the `ScabbardState::get_state_with_prefix` method to return an empty
+  iterator when the prefix is not in state.
+
+### Documentation
+
+* Add man pages for the `splinter health` command and its subcommands.
+
+* Make general improvements and corrections to the man pages and Rust API
+  documentation.
+
+### Gameroom
+
+* Update the database creation and migration process to prevent migrations from
+  running when not necessary.
+
+* Run database migrations for gameroom tests to verify that the migrations are
+  correct.
+
+* Replace the key registry and static node registry file with a dynamically
+  constructed registry file.
+
+* Player names now appear in the UI as truncated public keys rather than
+  user-friendly names. This is a side effect of removing the key registry; it
+  will be addressed in a future release.
+
+* Update both gameroom databases to preserve state across restarts with Docker
+  volumes.
+
+* Update `gameroomd` to use Biome for user registration and login.
+
+### Private Counter and Private XO
+
+* Remove registry files because they are no longer required by `splinterd` and
+  are not needed for these example applications.
+
+### Miscellaneous
+
+* Update the Splinter justfile to run lint checks on all Splinter crates and
+  exit on warnings.
+
+* Add the Splinter logo to the Splinter repository's README.
+
+
 ## Changes in Splinter 0.3.16
 
 ### Highlights
@@ -36,9 +365,9 @@
 
     ```
     --cert-dir  -> --tls-cert-dir
-   --ca-file -> --tls-ca-file
-   --client-cert -> --tls-client-cert
-   --client-key -> --tls-client-key
+    --ca-file -> --tls-ca-file
+    --client-cert -> --tls-client-cert
+    --client-key -> --tls-client-key
     --server-cert -> --tls-server-cert
     --server-key -> --tls-server-key
     --insecure -> --tls-insecure
@@ -408,8 +737,8 @@ For upgrade information, see [Upgrading to Splinter 0.3.15 from Splinter 0.3.14]
 ### Miscellaneous
 
 * Update the examples
-  [private_counter](https://github.com/Cargill/splinter/tree/master/examples/private_counter)
-  and [private_xo](https://github.com/Cargill/splinter/tree/master/examples/private_xo)
+  [private_counter](https://github.com/Cargill/splinter/tree/v0.3.15/examples/private_counter)
+  and [private_xo](https://github.com/Cargill/splinter/tree/v0.3.15/examples/private_xo)
   to be compatible with Splinter version 0.3.15.
 
 ## Changes in Splinter 0.3.14
@@ -1290,7 +1619,7 @@ builds.
 
 ### Highlights
 
-* Completion of the two-phase-commit consensus algorithm with deterministic
+* Completion of the two-phase commit consensus algorithm with deterministic
   coordination
 * Continued progress towards dynamically generating circuits, including
   dynamic peering and circuit proposal validation
@@ -1301,16 +1630,16 @@ builds.
 
 * Add a service orchestration implementation
 * Add Scabbard service factory 
-* Implement a deterministic two-phase-commit coordinator
-* Reorder the commit/reject process for the two-phase-commit coordinator. The
+* Implement a deterministic two-phase commit coordinator
+* Reorder the commit/reject process for the two-phase commit coordinator. The
   coordinator now tells proposal manager to commit/reject before broadcasting
   the corresponding message to other verifiers.
-* Refactor two-phase-commit complete_coordination. Move the process of 
+* Refactor two-phase commit complete_coordination. Move the process of 
   finishing the coordination of a proposal in two-phase commit to a single
   function to reduce duplication.
-* Implement a two-phase-commit timeout for consensus proposals
-* Update the two-phase-commit algorithm to ignore duplicate proposals
-* Allow dynamic verifiers for a single instance of two-phase-commit consensus
+* Implement a two-phase commit timeout for consensus proposals
+* Update the two-phase commit algorithm to ignore duplicate proposals
+* Allow dynamic verifiers for a single instance of two-phase commit consensus
 * Add an Authorization Inquisitor trait for inspecting peer authorization state
 * Add the ability to queue messages from unauthorized peers and unpeered nodes
   to the admin service

@@ -16,7 +16,6 @@
 extern crate log;
 #[macro_use]
 extern crate serde_derive;
-#[cfg(feature = "config-command-line")]
 #[macro_use]
 extern crate clap;
 
@@ -28,27 +27,19 @@ mod transport;
 
 use flexi_logger::{style, DeferredNow, LogSpecBuilder, Logger};
 use log::Record;
+use rand::{thread_rng, Rng};
 
-#[cfg(feature = "config-command-line")]
-use crate::config::ClapPartialConfigBuilder;
-#[cfg(feature = "config-toml")]
-use crate::config::ConfigError;
-#[cfg(feature = "config-default")]
-use crate::config::DefaultPartialConfigBuilder;
-#[cfg(feature = "config-env-var")]
-use crate::config::EnvPartialConfigBuilder;
-#[cfg(feature = "default")]
-use crate::config::PartialConfigBuilder;
-#[cfg(feature = "config-toml")]
-use crate::config::TomlPartialConfigBuilder;
-use crate::config::{Config, ConfigBuilder};
+use crate::config::{
+    ClapPartialConfigBuilder, Config, ConfigBuilder, ConfigError, DefaultPartialConfigBuilder,
+    EnvPartialConfigBuilder, PartialConfigBuilder, TomlPartialConfigBuilder,
+};
 use crate::daemon::SplinterDaemonBuilder;
 use clap::{clap_app, crate_version};
 use clap::{Arg, ArgMatches};
 
 use std::env;
-#[cfg(feature = "config-toml")]
-use std::fs;
+use std::fs::{self, File};
+use std::io::Write;
 use std::path::Path;
 use std::thread;
 
@@ -56,46 +47,99 @@ use error::UserError;
 use transport::build_transport;
 
 fn create_config(_toml_path: Option<&str>, _matches: ArgMatches) -> Result<Config, UserError> {
-    #[cfg(feature = "default")]
     let mut builder = ConfigBuilder::new();
-    #[cfg(not(feature = "default"))]
-    let builder = ConfigBuilder::new();
 
-    #[cfg(feature = "config-command-line")]
-    {
-        let clap_config = ClapPartialConfigBuilder::new(_matches).build()?;
-        builder = builder.with_partial_config(clap_config);
+    let clap_config = ClapPartialConfigBuilder::new(_matches).build()?;
+    builder = builder.with_partial_config(clap_config);
+
+    if let Some(file) = _toml_path {
+        debug!("Loading config toml file: {:?}", fs::canonicalize(file)?);
+        let toml_string = fs::read_to_string(file).map_err(|err| ConfigError::ReadError {
+            file: String::from(file),
+            err,
+        })?;
+        let toml_config = TomlPartialConfigBuilder::new(toml_string, String::from(file))
+            .map_err(UserError::ConfigError)?
+            .build()?;
+        builder = builder.with_partial_config(toml_config);
     }
 
-    #[cfg(feature = "config-toml")]
-    {
-        if let Some(file) = _toml_path {
-            debug!("Loading config toml file: {:?}", fs::canonicalize(file)?);
-            let toml_string = fs::read_to_string(file).map_err(|err| ConfigError::ReadError {
-                file: String::from(file),
-                err,
-            })?;
-            let toml_config = TomlPartialConfigBuilder::new(toml_string, String::from(file))
-                .map_err(UserError::ConfigError)?
-                .build()?;
-            builder = builder.with_partial_config(toml_config);
-        }
-    }
+    let env_config = EnvPartialConfigBuilder::new().build()?;
+    builder = builder.with_partial_config(env_config);
 
-    #[cfg(feature = "config-env-var")]
-    {
-        let env_config = EnvPartialConfigBuilder::new().build()?;
-        builder = builder.with_partial_config(env_config);
-    }
+    let default_config = DefaultPartialConfigBuilder::new().build()?;
+    builder = builder.with_partial_config(default_config);
 
-    #[cfg(feature = "config-default")]
-    {
-        let default_config = DefaultPartialConfigBuilder::new().build()?;
-        builder = builder.with_partial_config(default_config);
-    }
     builder
         .build()
         .map_err(|e| UserError::MissingArgument(e.to_string()))
+}
+
+// Checks whether there is a saved node_id file. If there is, the config node_id must match
+// the node_id in the file, otherwise we will return an error.
+fn find_node_id(config: &Config) -> Result<String, UserError> {
+    let node_id_path = Path::new(config.state_dir()).join("node_id");
+
+    // Check if node file exists
+    if node_id_path.exists() {
+        // If the node file exists, read the node_id within the file.
+        let mut file_node_id = fs::read_to_string(&node_id_path).map_err(|err| {
+            UserError::io_err_with_source("Unable to read node_id file", Box::new(err))
+        })?;
+        if file_node_id.ends_with('\n') {
+            file_node_id.pop();
+        }
+        match config.node_id() {
+            // If the config has a node_id, check if this matches the node_id read from the file.
+            Some(config_node_id) => {
+                if config_node_id != file_node_id {
+                    // If the node_id from the config object and the file do not match,
+                    // return an error.
+                    Err(UserError::InvalidArgument(format!(
+                        "node_id from file {} does not match node_id from config {}",
+                        file_node_id, config_node_id
+                    )))
+                } else {
+                    // If the node_id does match, then we return this node_id and continue.
+                    Ok(config_node_id.to_string())
+                }
+            }
+            None => {
+                // If the config object does not have a node_id, continue with the node_id read
+                // from the file.
+                Ok(file_node_id)
+            }
+        }
+    } else {
+        // If node file does not exist, need to create and save a node_id file.
+        // Check if the config obejct has a node_id, otherwise generate a random one.
+        let node_id = config
+            .node_id()
+            .map(ToOwned::to_owned)
+            .unwrap_or_else(|| format!("n{}", thread_rng().gen::<u16>().to_string()));
+        let mut file = File::create(&node_id_path).map_err(|err| {
+            UserError::io_err_with_source(
+                &format!("Unable to create node_id file {:?}", &node_id_path),
+                Box::new(err),
+            )
+        })?;
+        file.write_all(&node_id.as_bytes()).map_err(|err| {
+            UserError::io_err_with_source(
+                &format!("Unable to write node_id file {:?}", &node_id_path),
+                Box::new(err),
+            )
+        })?;
+        // Append newline to file
+        writeln!(file).map_err(|err| {
+            UserError::io_err_with_source(
+                &format!("Unable to write to node_id file {:?}", &node_id_path),
+                Box::new(err),
+            )
+        })?;
+
+        // Continue with node_id
+        Ok(node_id)
+    }
 }
 
 // format for logs
@@ -127,16 +171,12 @@ fn main() {
           "Human-readable name for the node")
         (@arg storage: --("storage") +takes_value
           "Storage type used for the node; defaults to yaml")
-        (@arg service_endpoint: --("service-endpoint") +takes_value
-          "Endpoint that service will connect to, tcp://ip:port")
         (@arg no_tls:  --("no-tls") "Turn off tls configuration")
-        (@arg bind: --("bind") +takes_value
-          "Connection endpoint for REST API")
         (@arg registry_auto_refresh: --("registry-auto-refresh") +takes_value
-            "How often remote node registries should attempt to fetch upstream changes in the \
+            "How often remote Splinter registries should attempt to fetch upstream changes in the \
              background (in seconds); default is 600 (10 minutes), 0 means off")
         (@arg registry_forced_refresh: --("registry-forced-refresh") +takes_value
-            "How long before remote node registries should fetch upstream changes when read \
+            "How long before remote Splinter registries should fetch upstream changes when read \
              (in seconds); default is 10, 0 means off")
         (@arg admin_timeout: --("admin-timeout") +takes_value
             "The coordinator timeout for admin service proposals (in seconds); default is \
@@ -180,6 +220,20 @@ fn main() {
                 .alias("network-endpoint"),
         )
         .arg(
+            Arg::with_name("service_endpoint")
+                .long("service-endpoint")
+                .long_help("Endpoint that service will connect to, tcp://ip:port")
+                .takes_value(true)
+                .hidden(!cfg!(feature = "service-endpoint")),
+        )
+        .arg(
+            Arg::with_name("rest_api_endpoint")
+                .long("rest-api-endpoint")
+                .help("Connection endpoint for REST API")
+                .takes_value(true)
+                .alias("bind"),
+        )
+        .arg(
             Arg::with_name("peers")
                 .long("peers")
                 .help("Endpoint that service will connect to, protocol-prefix://ip:port")
@@ -190,7 +244,7 @@ fn main() {
         .arg(
             Arg::with_name("registries")
                 .long("registries")
-                .help("Read-only node registries")
+                .help("Read-only Splinter registries")
                 .takes_value(true)
                 .multiple(true)
                 .alias("registry"),
@@ -242,6 +296,12 @@ fn main() {
                 .long("tls-insecure")
                 .help("If set to tls, should accept all peer certificates")
                 .alias("insecure"),
+        )
+        .arg(
+            Arg::with_name("state_dir")
+                .long("state-dir")
+                .help("Storage directory when storage is YAML")
+                .takes_value(true),
         );
 
     #[cfg(feature = "database")]
@@ -309,35 +369,20 @@ fn start_daemon(matches: ArgMatches) -> Result<(), UserError> {
 
     let config = create_config(config_file_path, matches.clone())?;
 
+    if config.no_tls() {
+        for network_endpoint in config.network_endpoints() {
+            if network_endpoint.starts_with("tcps://") {
+                return Err(UserError::InvalidArgument(format!(
+                    "TLS is disabled, thus endpoint {} is invalid",
+                    network_endpoint,
+                )));
+            }
+        }
+    }
+
     let transport = build_transport(&config)?;
 
-    let state_dir = Path::new(config.state_dir());
-
-    let storage_location = match &config.storage() as &str {
-        "yaml" => state_dir
-            .join("circuits.yaml")
-            .to_str()
-            .ok_or_else(|| {
-                UserError::InvalidArgument("'state_dir' is not a valid UTF-8 string".into())
-            })?
-            .to_string(),
-        "memory" => "memory".to_string(),
-        _ => {
-            return Err(UserError::InvalidArgument(format!(
-                "storage type is not supported: {}",
-                config.storage()
-            )))
-        }
-    };
-
-    let node_registry_directory = state_dir
-        .to_str()
-        .ok_or_else(|| {
-            UserError::InvalidArgument("'state_dir' is not a valid UTF-8 string".into())
-        })?
-        .to_string();
-
-    let rest_api_endpoint = config.bind();
+    let rest_api_endpoint = config.rest_api_endpoint();
 
     #[cfg(feature = "database")]
     let db_url = config.database();
@@ -346,24 +391,44 @@ fn start_daemon(matches: ArgMatches) -> Result<(), UserError> {
 
     config.log_as_debug();
 
+    let node_id = find_node_id(&config)?;
+    let display_name = config
+        .display_name()
+        .map(ToOwned::to_owned)
+        .unwrap_or_else(|| format!("Node {}", &node_id));
+
     let mut daemon_builder = SplinterDaemonBuilder::new();
 
     daemon_builder = daemon_builder
-        .with_storage_location(storage_location)
-        .with_node_registry_directory(node_registry_directory)
+        .with_state_dir(config.state_dir().to_string())
         .with_network_endpoints(config.network_endpoints().to_vec())
         .with_advertised_endpoints(config.advertised_endpoints().to_vec())
-        .with_service_endpoint(String::from(config.service_endpoint()))
         .with_initial_peers(config.peers().to_vec())
-        .with_node_id(String::from(config.node_id()))
-        .with_display_name(String::from(config.display_name()))
+        .with_node_id(node_id)
+        .with_display_name(display_name)
         .with_rest_api_endpoint(String::from(rest_api_endpoint))
         .with_storage_type(String::from(config.storage()))
         .with_registries(config.registries().to_vec())
         .with_registry_auto_refresh(config.registry_auto_refresh())
         .with_registry_forced_refresh(config.registry_forced_refresh())
         .with_heartbeat(config.heartbeat())
-        .with_admin_timeout(admin_timeout);
+        .with_admin_timeout(admin_timeout)
+        .with_strict_ref_counts(config.strict_ref_counts());
+
+    #[cfg(feature = "service-endpoint")]
+    {
+        daemon_builder =
+            daemon_builder.with_service_endpoint(String::from(config.service_endpoint()))
+    }
+    #[cfg(not(feature = "service-endpoint"))]
+    {
+        if matches.is_present("service_endpoint") {
+            warn!(
+                "--service-endpoint is an experimental feature.  It is enabled by building \
+                splinterd with the features \"service-endpoint\" enabled"
+            );
+        }
+    }
 
     #[cfg(feature = "database")]
     {

@@ -12,6 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//! Provides the functionality to convert a template YAML file or serialized bytes to a native
+//! circuit template representation. Also offers a version guard, to ensure the native circuit
+//! template object is using a compatible circuit definition.
+
 pub mod v1;
 
 use std::fs::File;
@@ -20,17 +24,26 @@ use std::path::Path;
 
 use super::CircuitTemplateError;
 
+/// Version guard for the template, referring to the version of the circuit definition being used.
 #[derive(Deserialize, Debug)]
 struct TemplateVersionGuard {
     version: String,
 }
 
+/// Enum of the version options currently implemented. Each variant holds the circuit templates
+/// implemented for the corresponding circuit version.
 #[derive(Deserialize, Debug)]
 pub enum CircuitTemplate {
+    /// Circuit version 1.0 used for a `CircuitCreateTemplate`.
     V1(v1::CircuitCreateTemplate),
 }
 
 impl CircuitTemplate {
+    /// Creates a `CircuitTemplate` from a template YAML file.
+    ///
+    /// # Arguments
+    ///
+    /// * `file_path` - Path to the template YAML file.
     pub fn load_from_file(file_path: &str) -> Result<Self, CircuitTemplateError> {
         let path = Path::new(file_path);
         if !path.is_file() {
@@ -47,6 +60,7 @@ impl CircuitTemplate {
         Ok(template)
     }
 
+    /// Creates a `CircuitTemplate` from serialized bytes.
     fn deserialize(mut reader: impl Read) -> Result<Self, CircuitTemplateError> {
         let mut data = Vec::new();
         reader.read_to_end(&mut data).map_err(|err| {
@@ -80,11 +94,12 @@ mod test {
 
     use tempdir::TempDir;
 
+    /// Example circuit template YAML file.
     const EXAMPLE_TEMPLATE_YAML: &[u8] = br##"version: v1
 args:
     - name: admin-keys
       required: false
-      default: $(a:SIGNER_PUB_KEY)
+      default: $(SIGNER_PUB_KEY)
 rules:
     set-management-type:
         management-type: "gameroom"
@@ -92,24 +107,32 @@ rules:
         service-type: 'scabbard'
         service-args:
         - key: 'admin-keys'
-          value: [$(admin-keys)]
+          value: [$(ADMIN-KEYS)]
         - key: 'peer-services'
-          value: '$(r:ALL_OTHER_SERVICES)'
+          value: '$(ALL_OTHER_SERVICES)'
         first-service: 'a000'
     set-metadata:
         encoding: json
         metadata:
             - key: "scabbard_admin_keys"
-              value: [$(cs:ADMIN)]
+              value: [$(ADMIN-KEYS)]
             - key: "alias"
-              value: "$(sm:gameroom_name)" "##;
+              value: "$(GAMEROOM-NAME)" "##;
 
-    /*
-     * Verifies load_template correctly loads a template version 1
-     */
+    /// Verifies load_template correctly loads a `CircuitTemplate` with version 1.
+    ///
+    /// The test follows the procedure below:
+    /// 1. Sets up a temporary directory, to write a circuit template YAML file from the
+    ///    `EXAMPLE_TEMPLATE_YAML`.
+    /// 2. Uses the `load_from_file` method to load a `v1` `CircuitTemplate`.
+    /// 3. Matches on the `CircuitTemplate` in order to deconstruct the enum loaded in the previous
+    ///   step.
+    /// 4. Asserts the values of the `CircuitCreateTemplate` held in the `v1` template.
+    ///
+    /// This test verifies that all fields of the `CircuitCreateTemplate` has all of the
+    /// expected values and that all are correctly constructed.
     #[test]
     fn test_parse_template_v1() {
-        // create temp directoy
         let temp_dir = TempDir::new("test_parse_template_v1").unwrap();
         let temp_dir = temp_dir.path().to_path_buf();
         let file_path = get_file_path(temp_dir);
@@ -125,10 +148,7 @@ rules:
                 for arg in args {
                     assert_eq!(arg.name(), "admin-keys");
                     assert_eq!(arg.required(), false);
-                    assert_eq!(
-                        arg.default_value(),
-                        Some(&"$(a:SIGNER_PUB_KEY)".to_string())
-                    );
+                    assert_eq!(arg.default_value(), Some(&"$(SIGNER_PUB_KEY)".to_string()));
 
                     let create_services = template
                         .rules()
@@ -140,9 +160,9 @@ rules:
 
                     let service_args = create_services.service_args();
                     assert!(service_args.iter().any(|arg| arg.key() == "admin-keys"
-                        && arg.value() == &Value::List(vec!["$(admin-keys)".to_string()])));
+                        && arg.value() == &Value::List(vec!["$(ADMIN-KEYS)".to_string()])));
                     assert!(service_args.iter().any(|arg| arg.key() == "peer-services"
-                        && arg.value() == &Value::Single("$(r:ALL_OTHER_SERVICES)".to_string())));
+                        && arg.value() == &Value::Single("$(ALL_OTHER_SERVICES)".to_string())));
                 }
 
                 let management_type = template
@@ -159,12 +179,13 @@ rules:
 
                 match metadata {
                     Metadata::Json { metadata } => {
-                        assert!(metadata.iter().any(|metadata| metadata.key()
-                            == "scabbard_admin_keys"
-                            && metadata.value() == &Value::List(vec!["$(cs:ADMIN)".to_string()])));
+                        assert!(metadata
+                            .iter()
+                            .any(|metadata| metadata.key() == "scabbard_admin_keys"
+                                && metadata.value()
+                                    == &Value::List(vec!["$(ADMIN-KEYS)".to_string()])));
                         assert!(metadata.iter().any(|metadata| metadata.key() == "alias"
-                            && metadata.value()
-                                == &Value::Single("$(sm:gameroom_name)".to_string())));
+                            && metadata.value() == &Value::Single("$(GAMEROOM-NAME)".to_string())));
                     }
                 }
             }

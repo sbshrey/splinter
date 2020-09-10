@@ -12,34 +12,32 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//! Configuration to provide the necessary values to start up the Splinter daemon.
+//!
+//! These values may be sourced from a toml file, command line arguments, environment variables
+//! or pre-defined defaults. This module allows for configuration values from each of these
+//! sources to be combined into a final `Config` object.
+
 mod builder;
-#[cfg(feature = "config-command-line")]
 mod clap;
-#[cfg(feature = "config-default")]
 mod default;
-#[cfg(feature = "config-env-var")]
 mod env;
 mod error;
 mod partial;
-#[cfg(feature = "config-toml")]
 mod toml;
 
 use std::time::Duration;
 
-#[cfg(feature = "config-command-line")]
 pub use crate::config::clap::ClapPartialConfigBuilder;
-#[cfg(feature = "config-default")]
 pub use crate::config::default::DefaultPartialConfigBuilder;
-#[cfg(feature = "config-env-var")]
 pub use crate::config::env::EnvPartialConfigBuilder;
-#[cfg(feature = "config-toml")]
 pub use crate::config::toml::TomlPartialConfigBuilder;
 pub use builder::{ConfigBuilder, PartialConfigBuilder};
 pub use error::ConfigError;
 pub use partial::{ConfigSource, PartialConfig};
 
-/// Config is the final representation of configuration values. This final config object assembles
-/// values from PartialConfig objects generated from various sources.
+/// `Config` is the final representation of configuration values. This final config object assembles
+/// values from `PartialConfig` builder objects generated from various sources.
 #[derive(Debug)]
 pub struct Config {
     config_dir: (String, ConfigSource),
@@ -50,13 +48,14 @@ pub struct Config {
     tls_client_key: (String, ConfigSource),
     tls_server_cert: (String, ConfigSource),
     tls_server_key: (String, ConfigSource),
+    #[cfg(feature = "service-endpoint")]
     service_endpoint: (String, ConfigSource),
     network_endpoints: (Vec<String>, ConfigSource),
     advertised_endpoints: (Vec<String>, ConfigSource),
     peers: (Vec<String>, ConfigSource),
-    node_id: (String, ConfigSource),
-    display_name: (String, ConfigSource),
-    bind: (String, ConfigSource),
+    node_id: Option<(String, ConfigSource)>,
+    display_name: Option<(String, ConfigSource)>,
+    rest_api_endpoint: (String, ConfigSource),
     #[cfg(feature = "database")]
     database: (String, ConfigSource),
     registries: (Vec<String>, ConfigSource),
@@ -71,6 +70,7 @@ pub struct Config {
     enable_biome: (bool, ConfigSource),
     #[cfg(feature = "rest-api-cors")]
     whitelist: Option<(Vec<String>, ConfigSource)>,
+    strict_ref_counts: (bool, ConfigSource),
 }
 
 impl Config {
@@ -106,6 +106,7 @@ impl Config {
         &self.tls_server_key.0
     }
 
+    #[cfg(feature = "service-endpoint")]
     pub fn service_endpoint(&self) -> &str {
         &self.service_endpoint.0
     }
@@ -122,16 +123,24 @@ impl Config {
         &self.peers.0
     }
 
-    pub fn node_id(&self) -> &str {
-        &self.node_id.0
+    pub fn node_id(&self) -> Option<&str> {
+        if let Some((id, _)) = &self.node_id {
+            Some(id)
+        } else {
+            None
+        }
     }
 
-    pub fn display_name(&self) -> &str {
-        &self.display_name.0
+    pub fn display_name(&self) -> Option<&str> {
+        if let Some((name, _)) = &self.display_name {
+            Some(name)
+        } else {
+            None
+        }
     }
 
-    pub fn bind(&self) -> &str {
-        &self.bind.0
+    pub fn rest_api_endpoint(&self) -> &str {
+        &self.rest_api_endpoint.0
     }
 
     #[cfg(feature = "database")]
@@ -185,6 +194,10 @@ impl Config {
         }
     }
 
+    pub fn strict_ref_counts(&self) -> bool {
+        self.strict_ref_counts.0
+    }
+
     pub fn config_dir_source(&self) -> &ConfigSource {
         &self.config_dir.1
     }
@@ -217,6 +230,7 @@ impl Config {
         &self.tls_server_key.1
     }
 
+    #[cfg(feature = "service-endpoint")]
     fn service_endpoint_source(&self) -> &ConfigSource {
         &self.service_endpoint.1
     }
@@ -233,16 +247,24 @@ impl Config {
         &self.peers.1
     }
 
-    fn node_id_source(&self) -> &ConfigSource {
-        &self.node_id.1
+    fn node_id_source(&self) -> Option<&ConfigSource> {
+        if let Some((_, source)) = &self.node_id {
+            Some(source)
+        } else {
+            None
+        }
     }
 
-    fn display_name_source(&self) -> &ConfigSource {
-        &self.display_name.1
+    fn display_name_source(&self) -> Option<&ConfigSource> {
+        if let Some((_, source)) = &self.display_name {
+            Some(source)
+        } else {
+            None
+        }
     }
 
-    fn bind_source(&self) -> &ConfigSource {
-        &self.bind.1
+    fn rest_api_endpoint_source(&self) -> &ConfigSource {
+        &self.rest_api_endpoint.1
     }
 
     #[cfg(feature = "database")]
@@ -296,6 +318,10 @@ impl Config {
         }
     }
 
+    fn strict_ref_counts_source(&self) -> &ConfigSource {
+        &self.strict_ref_counts.1
+    }
+
     #[allow(clippy::cognitive_complexity)]
     /// Displays the configuration value along with where the value was sourced from.
     pub fn log_as_debug(&self) {
@@ -339,6 +365,7 @@ impl Config {
             self.tls_server_key(),
             self.tls_server_key_source()
         );
+        #[cfg(feature = "service-endpoint")]
         debug!(
             "Config: service_endpoint: {} (source: {:?})",
             self.service_endpoint(),
@@ -359,20 +386,16 @@ impl Config {
             self.peers(),
             self.peers_source()
         );
+        if let (Some(id), Some(source)) = (self.node_id(), self.node_id_source()) {
+            debug!("Config: node_id: {} (source: {:?})", id, source,);
+        }
+        if let (Some(name), Some(source)) = (self.display_name(), self.display_name_source()) {
+            debug!("Config: display_name: {} (source: {:?})", name, source,);
+        }
         debug!(
-            "Config: node_id: {} (source: {:?})",
-            self.node_id(),
-            self.node_id_source()
-        );
-        debug!(
-            "Config: display_name: {} (source: {:?})",
-            self.display_name(),
-            self.display_name_source()
-        );
-        debug!(
-            "Config: bind: {} (source: {:?})",
-            self.bind(),
-            self.bind_source()
+            "Config: rest_api_endpoint: {} (source: {:?})",
+            self.rest_api_endpoint(),
+            self.rest_api_endpoint_source()
         );
         debug!(
             "Config: registries: {:?} (source: {:?})",
@@ -428,21 +451,21 @@ impl Config {
         );
         #[cfg(feature = "rest-api-cors")]
         self.log_whitelist();
+        debug!(
+            "Config: strict_ref_counts: {:?} (source: {:?})",
+            self.strict_ref_counts(),
+            self.strict_ref_counts_source()
+        );
     }
 
     #[cfg(feature = "rest-api-cors")]
     fn log_whitelist(&self) {
-        if let Some(list) = self.whitelist() {
-            debug!(
-                "Config: whitelist: {:?} (source: {:?})",
-                list,
-                self.whitelist_source()
-            );
+        if let (Some(list), Some(source)) = (self.whitelist(), self.whitelist_source()) {
+            debug!("Config: whitelist: {:?} (source: {:?})", list, source,);
         }
     }
 }
 
-#[cfg(feature = "default")]
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -470,8 +493,9 @@ mod tests {
     static EXAMPLE_CLIENT_KEY: &str = "private/client.key";
     static EXAMPLE_SERVER_CERT: &str = "server.crt";
     static EXAMPLE_SERVER_KEY: &str = "private/server.key";
-    static EXAMPLE_SERVICE_ENDPOINT: &str = "127.0.0.1:8043";
-    static EXAMPLE_NETWORK_ENDPOINT: &str = "127.0.0.1:8044";
+    #[cfg(feature = "service-endpoint")]
+    static EXAMPLE_SERVICE_ENDPOINT: &str = "tcp://127.0.0.1:8043";
+    static EXAMPLE_NETWORK_ENDPOINT: &str = "tcps://127.0.0.1:8044";
     static EXAMPLE_ADVERTISED_ENDPOINT: &str = "localhost:8044";
     static EXAMPLE_NODE_ID: &str = "012";
     static EXAMPLE_DISPLAY_NAME: &str = "Node 1";
@@ -482,7 +506,7 @@ mod tests {
     static DEFAULT_SERVER_KEY: &str = "private/server.key";
     static DEFAULT_CA_CERT: &str = "ca.pem";
 
-    /// Converts a list of tuples to a toml Table Value used to write a toml file.
+    /// Converts a list of tuples to a toml `Table` `Value` used to write a toml file.
     pub fn get_toml_value() -> Value {
         let values = vec![
             ("storage".to_string(), EXAMPLE_STORAGE.to_string()),
@@ -497,6 +521,7 @@ mod tests {
                 EXAMPLE_SERVER_CERT.to_string(),
             ),
             ("tls_server_key".to_string(), EXAMPLE_SERVER_KEY.to_string()),
+            #[cfg(feature = "service-endpoint")]
             (
                 "service_endpoint".to_string(),
                 EXAMPLE_SERVICE_ENDPOINT.to_string(),
@@ -513,7 +538,7 @@ mod tests {
         Value::Table(config_values)
     }
 
-    /// Creates an ArgMatches object to be used to construct a ClapPartialConfigBuilder object.
+    /// Creates an `ArgMatches` object to be used to construct a `ClapPartialConfigBuilder` object.
     fn create_arg_matches(args: Vec<&str>) -> ArgMatches<'static> {
         clap_app!(configtest =>
         (version: crate_version!())
@@ -532,7 +557,7 @@ mod tests {
         (@arg tls_server_cert: --("tls-server-cert") +takes_value)
         (@arg tls_server_key:  --("tls-server-key") +takes_value)
         (@arg tls_client_key:  --("tls-client-key") +takes_value)
-        (@arg bind: --("bind") +takes_value)
+        (@arg rest_api_endpoint: --("rest-api-endpoint") +takes_value)
         (@arg tls_insecure: --("tls-insecure"))
         (@arg no_tls: --("no-tls"))
         (@arg enable_biome: --("enable-biome")))
@@ -540,82 +565,82 @@ mod tests {
     }
 
     #[test]
-    /// This test verifies that a finalized Config object constructed from just
-    /// a DefaultPartialConfigBuilder object will be unsuccessful because of the missing values, in
-    /// the following steps:
+    /// This test verifies that a finalized `Config` object may be constructed from just
+    /// a `DefaultPartialConfigBuilder` object, in the following steps:
     ///
-    /// 1. An empty ConfigBuilder object is created.
-    /// 2. A PartialConfig built from a DefaultPartialConfigBuilder is added to the ConfigBuilder.
+    /// 1. An empty `ConfigBuilder` object is created.
+    /// 2. A `PartialConfig` built from a `DefaultPartialConfigBuilder` is added to the
+    ///    `ConfigBuilder`.
     ///
-    /// This test then verifies the final Config object built from the ConfigBuilder object has
-    /// resulted in an error because of the missing values.
-    fn test_default_final_config_err() {
-        // Create a new ConfigBuilder object.
+    /// This test then verifies the final `Config` object built from the `ConfigBuilder` object has
+    /// resulted in a default `Config` object, as the node_id is not required.
+    fn test_default_final_config() {
+        // Create a new `ConfigBuilder` object.
         let mut builder = ConfigBuilder::new();
-        // Add a PartialConfig built from a DefaultPartialConfigBuilder object to the
-        // ConfigBuilder.
+        // Add a `PartialConfig` built from a `DefaultPartialConfigBuilder` object to the
+        // `ConfigBuilder`.
         builder = builder.with_partial_config(
             DefaultPartialConfigBuilder::new()
                 .build()
                 .expect("Unable to build DefaultPartialConfigBuilder"),
         );
-        // Build the final Config object.
+        // Build the final `Config` object.
         let final_config = builder.build();
-        // Asserts the final Config was not successfully built.
-        assert!(final_config.is_err());
+        // Asserts the final `Config` was successfully built.
+        assert!(final_config.is_ok());
     }
 
     #[test]
-    /// This test verifies that a finalized Config object constructed from just
-    /// a TomlPartialConfigBuilder object will be unsuccessful because of the missing values, in
+    /// This test verifies that a finalized `Config` object constructed from just
+    /// a `TomlPartialConfigBuilder` object will be unsuccessful because of the missing values, in
     /// the following steps:
     ///
-    /// 1. An empty ConfigBuilder object is created.
+    /// 1. An empty `ConfigBuilder` object is created.
     /// 2. The example config toml, TEST_TOML, is created, read and converted to a string.
-    /// 3. A TomlPartialConfigBuilder object is constructed by passing in the toml string created
+    /// 3. A `TomlPartialConfigBuilder` object is constructed by passing in the toml string created
     ///    in the previous step.
-    /// 4. The TomlPartialConfigBuilder object is added to the ConfigBuilder.
+    /// 4. The `TomlPartialConfigBuilder` object is added to the `ConfigBuilder`.
     ///
-    /// This test then verifies the final Config object built from the ConfigBuilder object has
+    /// This test then verifies the final `Config` object built from the `ConfigBuilder` object has
     /// resulted in an error because of the missing values.
     fn test_final_config_toml_err() {
-        // Create a new ConfigBuilder object.
+        // Create a new `ConfigBuilder` object.
         let mut builder = ConfigBuilder::new();
         // Create an example toml string.
         let toml_string = to_string(&get_toml_value()).expect("Could not encode TOML value");
-        // Create a TomlPartialConfigBuilder object from the toml string.
+        // Create a `TomlPartialConfigBuilder` object from the toml string.
         let toml_builder = TomlPartialConfigBuilder::new(toml_string, TEST_TOML.to_string())
             .expect(&format!(
                 "Unable to create TomlPartialConfigBuilder from: {}",
                 TEST_TOML
             ));
-        // Add a PartialConfig built from a DefaultPartialConfigBuilder object to the
-        // ConfigBuilder.
+        // Add a `PartialConfig` built from a `DefaultPartialConfigBuilder` object to the
+        // `ConfigBuilder`.
         builder = builder.with_partial_config(
             toml_builder
                 .build()
                 .expect("Unable to build TomlPartialConfigBuilder"),
         );
-        // Build the final Config object.
+        // Build the final `Config` object.
         let final_config = builder.build();
-        // Asserts the final Config was not successfully built.
+        // Asserts the final `Config` was not successfully built.
         assert!(final_config.is_err());
     }
 
     #[test]
-    /// This test verifies that a Config object, constructed from just a ClapPartialConfigBuilder
+    /// This test verifies that a `Config` object, constructed from just a `ClapPartialConfigBuilder`
     /// object, is unsuccessful because of the missing values, in the following steps:
     ///
-    /// 1. An empty ConfigBuilder object is created.
-    /// 2. An example ArgMatches object is created using `create_arg_matches`.
-    /// 3. A ClapPartialConfigBuilder object is constructed by passing in the example ArgMatches
+    /// 1. An empty `ConfigBuilder` object is created.
+    /// 2. An example `ArgMatches` object is created using `create_arg_matches`.
+    /// 3. A `ClapPartialConfigBuilder` object is constructed by passing in the example `ArgMatches`
     ///    created in the previous step.
-    /// 4. A PartialConfig built from the ClapPartialConfigBuilder is added to the ConfigBuilder.
+    /// 4. A `PartialConfig` built from the `ClapPartialConfigBuilder` is added to the `ConfigBuilder`.
     ///
-    /// This test then verifies the Config object built from the ClapPartialConfigBuilder has
+    /// This test then verifies the `Config` object built from the `ClapPartialConfigBuilder` has
     /// resulted in an error because of the missing values.
     fn test_clap_final_config_err() {
-        // Create a new ConfigBuilder object.
+        // Create a new `ConfigBuilder` object.
         let mut builder = ConfigBuilder::new();
         let args = vec![
             "configtest",
@@ -629,7 +654,9 @@ mod tests {
             EXAMPLE_NETWORK_ENDPOINT,
             "--advertised-endpoint",
             EXAMPLE_ADVERTISED_ENDPOINT,
+            #[cfg(feature = "service-endpoint")]
             "--service-endpoint",
+            #[cfg(feature = "service-endpoint")]
             EXAMPLE_SERVICE_ENDPOINT,
             "--tls-ca-file",
             EXAMPLE_CA_CERTS,
@@ -645,47 +672,50 @@ mod tests {
             "--no-tls",
             "--enable-biome",
         ];
-        // Create an example ArgMatches object to initialize the ClapPartialConfigBuilder.
+        // Create an example `ArgMatches` object to initialize the `ClapPartialConfigBuilder`.
         let matches = create_arg_matches(args);
-        // Create a new CommandLiine object from the arg matches.
+        // Create a new `CommandLine` object from the arg matches.
         let command_config = ClapPartialConfigBuilder::new(matches);
-        // Add a PartialConfig built from a DefaultPartialConfigBuilder object to the
-        // ConfigBuilder.
+        // Add a `PartialConfig` built from a `DefaultPartialConfigBuilder` object to the
+        // `ConfigBuilder`.
         builder = builder.with_partial_config(
             command_config
                 .build()
                 .expect("Unable to build ClapPartialConfigBuilder"),
         );
         let final_config = builder.build();
-        // Assert the Config object was not successfully built.
+        // Assert the `Config` object was not successfully built.
         assert!(final_config.is_err());
     }
 
     #[test]
-    /// This test verifies that a Config object, constructed from multiple config modules, contains
-    /// the correct values, giving ClapPartialConfigBuilder values ultimate precedence, using the
+    // This test potentially interactions with other tests that set the environment variables used
+    // within. It also fails to reset the environment variables to their original values.
+    #[ignore]
+    /// This test verifies that a `Config` object, constructed from multiple config modules, contains
+    /// the correct values, giving `ClapPartialConfigBuilder` values ultimate precedence, using the
     /// following steps:
     ///
-    /// 1. An empty ConfigBuilder object is created.
-    /// 2. A PartialConfig is created from the EnvPartialConfigBuilder module.
-    /// 3. A PartialConfig is created from the DefaultPartialConfigBuilder module.
-    /// 4. A PartialConfig is created from the TomlPartialConfigBuilder module, using the TEST_TOML
-    ///    string.
-    /// 5. An example ArgMatches object is created using `create_arg_matches`.
-    /// 6. A ClapPartialConfigBuilder object is constructed by passing in the example ArgMatches
+    /// 1. An empty `ConfigBuilder` object is created.
+    /// 2. A `PartialConfig` is created from the `EnvPartialConfigBuilder` module.
+    /// 3. A `PartialConfig` is created from the `DefaultPartialConfigBuilder` module.
+    /// 4. A `PartialConfig` is created from the `TomlPartialConfigBuilder` module, using the
+    ///    TEST_TOML string.
+    /// 5. An example `ArgMatches` object is created using `create_arg_matches`.
+    /// 6. A `ClapPartialConfigBuilder` object is constructed by passing in the example `ArgMatches`
     ///    created in the previous step.
-    /// 7. All PartialConfig objects are added to the ConfigBuilder and the final Config object is
-    ///    built.
+    /// 7. All `PartialConfig` objects are added to the `ConfigBuilder` and the final `Config`
+    ///    object is built.
     ///
-    /// This test then verifies the Config object built from the ConfigBuilder object by
+    /// This test then verifies the `Config` object built from the `ConfigBuilder` object by
     /// asserting each expected value.
     fn test_final_config_precedence() {
-        // Set the environment variables to populate the EnvPartialConfigBuilder object.
+        // Set the environment variables to populate the `EnvPartialConfigBuilder` object.
         env::set_var("SPLINTER_STATE_DIR", "test/state/");
         env::set_var("SPLINTER_CERT_DIR", "test/certs/");
-        // Create a new ConfigBuilder object.
+        // Create a new `ConfigBuilder` object.
         let builder = ConfigBuilder::new();
-        // Arguments to be used to create a ClapPartialConfigBuilder object.
+        // Arguments to be used to create a `ClapPartialConfigBuilder` object.
         let args = vec![
             "configtest",
             "--node-id",
@@ -694,16 +724,16 @@ mod tests {
             "Node 1",
             "--no-tls",
         ];
-        // Create an example ArgMatches object to initialize the ClapPartialConfigBuilder.
+        // Create an example `ArgMatches` object to initialize the `ClapPartialConfigBuilder`.
         let matches = create_arg_matches(args);
-        // Create a new CommandLine object from the arg matches.
+        // Create a new `CommandLine` object from the arg matches.
         let command_config = ClapPartialConfigBuilder::new(matches)
             .build()
             .expect("Unable to build ClapPartialConfigBuilder");
 
         // Create an example toml string.
         let toml_string = to_string(&get_toml_value()).expect("Could not encode TOML value");
-        // Create a TomlPartialConfigBuilder object from the toml string.
+        // Create a `TomlPartialConfigBuilder` object from the toml string.
         let toml_config = TomlPartialConfigBuilder::new(toml_string, TEST_TOML.to_string())
             .expect(&format!(
                 "Unable to create TomlPartialConfigBuilder from: {}",
@@ -712,17 +742,17 @@ mod tests {
             .build()
             .expect("Unable to build TomlPartialConfigBuilder");
 
-        // Create a PartialConfig from the EnvPartialConfigBuilder module.
+        // Create a `PartialConfig` from the `EnvPartialConfigBuilder` module.
         let env_config = EnvPartialConfigBuilder::new()
             .build()
             .expect("Unable to build EnvPartialConfigBuilder");
 
-        // Create a PartialConfig from the DefaultPartialConfigBuilder module.
+        // Create a `PartialConfig` from the `DefaultPartialConfigBuilder` module.
         let default_config = DefaultPartialConfigBuilder::new()
             .build()
             .expect("Unable to build DefaultPartialConfigBuilder");
 
-        // Add the PartialConfigs to the final ConfigBuilder in the order of precedence.
+        // Add the `PartialConfigs` to the final `ConfigBuilder` in the order of precedence.
         let final_config = builder
             .with_partial_config(command_config)
             .with_partial_config(toml_config)
@@ -732,9 +762,9 @@ mod tests {
             .expect("Unable to build final Config.");
 
         // Assert the final configuration values.
-        // Both the DefaultPartialConfigBuilder and TomlPartialConfigBuilder had values for
-        // `storage`, but the TomlPartialConfigBuilder value should have precedence (source should
-        // be Toml).
+        // Both the `DefaultPartialConfigBuilder` and `TomlPartialConfigBuilder` had values for
+        // `storage`, but the `TomlPartialConfigBuilder` value should have precedence (source should
+        // be `Toml`).
         assert_eq!(
             (final_config.storage(), final_config.storage_source()),
             (
@@ -745,17 +775,17 @@ mod tests {
             )
         );
 
-        // Both the DefaultPartialConfigBuilder and  ClapPartialConfigBuilder had values for
-        // `no-tls`, but the  ClapPartialConfigBuilder value should have precedence (source
-        // should be ).
+        // Both the `DefaultPartialConfigBuilder` and `ClapPartialConfigBuilder` had values for
+        // `no-tls`, but the `ClapPartialConfigBuilder` value should have precedence (source
+        // should be `CommandLine`).
         assert_eq!(
             (final_config.no_tls(), final_config.no_tls_source()),
             (true, &ConfigSource::CommandLine)
         );
 
-        // The DefaultPartialConfigBuilder and EnvPartialConfigBuilder had values for
-        // `tls_cert_dir`, but the EnvPartialConfigBuilder value should have precedence (source
-        // should be Environment).
+        // The `DefaultPartialConfigBuilder` and `EnvPartialConfigBuilder` had values for
+        // `tls_cert_dir`, but the `EnvPartialConfigBuilder` value should have precedence (source
+        // should be `Environment`).
         assert_eq!(
             (
                 final_config.tls_cert_dir(),
@@ -763,9 +793,9 @@ mod tests {
             ),
             ("test/certs/", &ConfigSource::Environment)
         );
-        // Both the DefaultPartialConfigBuilder and TomlPartialConfigBuilder had values for
-        // `tls_ca_file`, but the TomlPartialConfigBuilder value should have precedence (source
-        // should be Toml).
+        // Both the `DefaultPartialConfigBuilder` and `TomlPartialConfigBuilder` had values for
+        // `tls_ca_file`, but the `TomlPartialConfigBuilder `value should have precedence (source
+        // should be `Toml`).
         assert_eq!(
             (
                 final_config.tls_ca_file(),
@@ -778,9 +808,9 @@ mod tests {
                 },
             )
         );
-        // Both the DefaultPartialConfigBuilder and TomlPartialConfigBuilder had values for
-        // `tls_client_cert`, but the TomlPartialConfigBuilder value should have precedence (source
-        // should be Toml).
+        // Both the `DefaultPartialConfigBuilder` and `TomlPartialConfigBuilder` had values for
+        // `tls_client_cert`, but the `TomlPartialConfigBuilder` value should have precedence
+        // (source should be `Toml`).
         assert_eq!(
             (
                 final_config.tls_client_cert(),
@@ -793,9 +823,9 @@ mod tests {
                 }
             )
         );
-        // Both the DefaultPartialConfigBuilder and TomlPartialConfigBuilder had values for
-        // `tls_client_key`, but the TomlPartialConfigBuilder value should have precedence (source
-        // should be Toml).
+        // Both the `DefaultPartialConfigBuilder` and `TomlPartialConfigBuilder` had values for
+        // `tls_client_key`, but the `TomlPartialConfigBuilder` value should have precedence (source
+        // should be `Toml`).
         assert_eq!(
             (
                 final_config.tls_client_key(),
@@ -808,9 +838,9 @@ mod tests {
                 },
             )
         );
-        // Both the DefaultPartialConfigBuilder and TomlPartialConfigBuilder had values for
-        // `tls_server_cert`, but the TomlPartialConfigBuilder value should have precedence (source
-        // should be Toml).
+        // Both the `DefaultPartialConfigBuilder` and `TomlPartialConfigBuilder` had values for
+        // `tls_server_cert`, but the `TomlPartialConfigBuilder` value should have precedence
+        // (source should be `Toml`).
         assert_eq!(
             (
                 final_config.tls_server_cert(),
@@ -823,9 +853,9 @@ mod tests {
                 }
             )
         );
-        // Both the DefaultPartialConfigBuilder and TomlPartialConfigBuilder had values for
-        // `tls_server_key`, but the TomlPartialConfigBuilder value should have precedence (source
-        // should be Toml).
+        // Both the `DefaultPartialConfigBuilder` and `TomlPartialConfigBuilder` had values for
+        // `tls_server_key`, but the `TomlPartialConfigBuilder` value should have precedence (source
+        // should be `Toml`).
         assert_eq!(
             (
                 final_config.tls_server_key(),
@@ -838,9 +868,10 @@ mod tests {
                 }
             )
         );
-        // Both the DefaultPartialConfigBuilder and TomlPartialConfigBuilder had values for
-        // `service_endpoint`, but the TomlPartialConfigBuilder value should have precedence
-        // (source should be Toml).
+        // Both the `DefaultPartialConfigBuilder` and `TomlPartialConfigBuilder` had values for
+        // `service_endpoint`, but the `TomlPartialConfigBuilder` value should have precedence
+        // (source should be `Toml`).
+        #[cfg(feature = "service-endpoint")]
         assert_eq!(
             (
                 final_config.service_endpoint(),
@@ -853,8 +884,8 @@ mod tests {
                 }
             )
         );
-        // The DefaultPartialConfigBuilder is the only config with a value for `network_endpoints`
-        // (source should be Default).
+        // The `DefaultPartialConfigBuilder` is the only config with a value for `network_endpoints`
+        // (source should be `Default`).
         assert_eq!(
             (
                 final_config.network_endpoints(),
@@ -865,7 +896,7 @@ mod tests {
                 &ConfigSource::Default,
             )
         );
-        // `advertised_endpoints` defaults to `network_endpoints` (source should be Default).
+        // `advertised_endpoints` defaults to `network_endpoints` (source should be `Default`).
         assert_eq!(
             (
                 final_config.advertised_endpoints(),
@@ -876,44 +907,47 @@ mod tests {
                 &ConfigSource::Default,
             )
         );
-        // The DefaultPartialConfigBuilder is the only config with a value for `peers` (source
-        // should be Default).
+        // The `DefaultPartialConfigBuilder` is the only config with a value for `peers` (source
+        // should be `Default`).
         assert_eq!(
             (final_config.peers(), final_config.peers_source()),
             (&[] as &[String], &ConfigSource::Default,)
         );
-        // Both the TomlPartialConfigBuilder and ClapPartialConfigBuilder had values for `node_id`,
-        // but the ClapPartialConfigBuilder value should have precedence (source should be
-        // CommandLine).
+        // Both the `TomlPartialConfigBuilder` and `ClapPartialConfigBuilder` had values for `node_id`,
+        // but the `ClapPartialConfigBuilder` value should have precedence (source should be
+        // `CommandLine`).
         assert_eq!(
             (final_config.node_id(), final_config.node_id_source()),
-            ("123", &ConfigSource::CommandLine)
+            (Some("123"), Some(&ConfigSource::CommandLine))
         );
-        // The TomlPartialConfigBuilder and ClapPartialConfigBuilder had values for `display_name`,
-        // but the ClapPartialConfigBuilder value should have precedence (source should be
-        // CommandLine).
+        // The `TomlPartialConfigBuilder` and `ClapPartialConfigBuilder` had values for `display_name`,
+        // but the `ClapPartialConfigBuilder` value should have precedence (source should be
+        // `CommandLine`).
         assert_eq!(
             (
                 final_config.display_name(),
                 final_config.display_name_source()
             ),
-            ("Node 1", &ConfigSource::CommandLine)
+            (Some("Node 1"), Some(&ConfigSource::CommandLine))
         );
-        // The DefaultPartialConfigBuilder is the only config with a value for `bind` (source
-        // should be Default).
+        // The DefaultPartialConfigBuilder is the only config with a value for `rest_api_endpoint`
+        // (source should be Default).
         assert_eq!(
-            (final_config.bind(), final_config.bind_source()),
+            (
+                final_config.rest_api_endpoint(),
+                final_config.rest_api_endpoint_source()
+            ),
             ("127.0.0.1:8080", &ConfigSource::Default)
         );
         #[cfg(feature = "database")]
-        // The DefaultPartialConfigBuilder is the only config with a value for `database` (source
-        // should be Default).
+        // The `DefaultPartialConfigBuilder` is the only config with a value for `database` (source
+        // should be `Default`).
         assert_eq!(
             (final_config.database(), final_config.database_source()),
             ("127.0.0.1:5432", &ConfigSource::Default)
         );
-        // The DefaultPartialConfigBuilder is the only config with a value for
-        // `registry_auto_refresh` (source should be Default).
+        // The `DefaultPartialConfigBuilder` is the only config with a value for
+        // `registry_auto_refresh` (source should be `Default`).
         assert_eq!(
             (
                 final_config.registry_auto_refresh(),
@@ -921,8 +955,8 @@ mod tests {
             ),
             (600, &ConfigSource::Default)
         );
-        // The DefaultPartialConfigBuilder is the only config with a value for
-        // `registry_forced_refresh` (source should be Default).
+        // The `DefaultPartialConfigBuilder` is the only config with a value for
+        // `registry_forced_refresh` (source should be `Default`).
         assert_eq!(
             (
                 final_config.registry_forced_refresh(),
@@ -930,14 +964,14 @@ mod tests {
             ),
             (10, &ConfigSource::Default)
         );
-        // The DefaultPartialConfigBuilder is the only config with a value for `heartbeat`
-        // (source should be Default).
+        // The `DefaultPartialConfigBuilder` is the only config with a value for `heartbeat`
+        // (source should be `Default`).
         assert_eq!(
             (final_config.heartbeat(), final_config.heartbeat_source()),
             (30, &ConfigSource::Default)
         );
-        // The DefaultPartialConfigBuilder is the only config with a value for
-        // `admin_timeout` (source should be Default).
+        // The `DefaultPartialConfigBuilder` is the only config with a value for
+        // `admin_timeout` (source should be `Default`).
         assert_eq!(
             (
                 final_config.admin_timeout(),
@@ -945,9 +979,9 @@ mod tests {
             ),
             (Duration::from_secs(30), &ConfigSource::Default)
         );
-        // Both the DefaultPartialConfigBuilder and EnvPartialConfigBuilder had values for
-        // `state_dir`, but the EnvPartialConfigBuilder value should have precedence (source should
-        // be EnvVarConfig).
+        // Both the `DefaultPartialConfigBuilder` and `EnvPartialConfigBuilder` had values for
+        // `state_dir`, but the `EnvPartialConfigBuilder` value should have precedence (source
+        // should be `Environment`).
         assert_eq!(
             (final_config.state_dir(), final_config.state_dir_source()),
             ("test/state/", &ConfigSource::Environment)
@@ -955,24 +989,24 @@ mod tests {
     }
 
     #[test]
-    /// This test verifies that a Config object, created from a DefaultPartialConfigBuilder and
-    /// ClapPartialConfigBuilder object holds the correct file paths, using the following steps:
+    /// This test verifies that a `Config` object, created from a `DefaultPartialConfigBuilder` and
+    /// `ClapPartialConfigBuilder` object holds the correct file paths, using the following steps:
     ///
-    /// 1. An empty ConfigBuilder object is created.
-    /// 2. A PartialConfig is created from the DefaultPartialConfigBuilder module.
-    /// 3. An example ArgMatches object is created using `create_arg_matches`.
-    /// 4. A ClapPartialConfigBuilder object is constructed by passing in the example ArgMatches
+    /// 1. An empty `ConfigBuilder` object is created.
+    /// 2. A `PartialConfig` is created from the `DefaultPartialConfigBuilder` module.
+    /// 3. An example `ArgMatches` object is created using `create_arg_matches`.
+    /// 4. A `ClapPartialConfigBuilder` object is constructed by passing in the example `ArgMatches`
     ///    created in the previous step.
-    /// 5. All PartialConfig objects are added to the ConfigBuilder and the final Config object is
-    ///    built.
+    /// 5. All `PartialConfig` objects are added to the `ConfigBuilder` and the final `Config`
+    ///    object is built.
     ///
-    /// This test then verifies the Config object built holds the correct file paths. The cert_dir
-    /// value passed into the ClapPartialConfigBuilder object should be appended to the default
+    /// This test then verifies the `Config` object built holds the correct file paths. The `cert_dir`
+    /// value passed into the `ClapPartialConfigBuilder` object should be appended to the default
     /// file names for the certificate files.
     fn test_final_config_file_paths() {
-        // Create a new ConfigBuilder object.
+        // Create a new `ConfigBuilder` object.
         let builder = ConfigBuilder::new();
-        // Arguments to be used to create a ClapPartialConfigBuilder object, passing in a cert_dir.
+        // Arguments to be used to create a C`lapPartialConfigBuilder` object, passing in a `cert_dir`.
         let args = vec![
             "configtest",
             "--node-id",
@@ -982,28 +1016,28 @@ mod tests {
             "--tls-cert-dir",
             "/my_files/",
         ];
-        // Create an example ArgMatches object to initialize the ClapPartialConfigBuilder.
+        // Create an example `ArgMatches` object to initialize the `ClapPartialConfigBuilder`.
         let matches = create_arg_matches(args);
-        // Create a new CommandLine object from the arg matches.
+        // Create a new `CommandLine` object from the arg matches.
         let command_config = ClapPartialConfigBuilder::new(matches)
             .build()
             .expect("Unable to build ClapPartialConfigBuilder");
 
-        // Create a PartialConfig from the DefaultPartialConfigBuilder module.
+        // Create a `PartialConfig` from the `DefaultPartialConfigBuilder` module.
         let default_config = DefaultPartialConfigBuilder::new()
             .build()
             .expect("Unable to build DefaultPartialConfigBuilder");
 
-        // Add the PartialConfigs to the final ConfigBuilder in the order of precedence.
+        // Add the `PartialConfigs` to the final `ConfigBuilder` in the order of precedence.
         let final_config = builder
             .with_partial_config(command_config)
             .with_partial_config(default_config)
             .build()
             .expect("Unable to build final Config.");
 
-        // The DefaultPartialConfigBuilder and EnvPartialConfigBuilder had values for `cert_dir`,
-        // but the EnvPartialConfigBuilder value should have precedence (source should be
-        // Environment).
+        // The `DefaultPartialConfigBuilder` and `EnvPartialConfigBuilder` had values for `cert_dir`,
+        // but the `EnvPartialConfigBuilder` value should have precedence (source should be
+        // `Environment`).
         assert_eq!(
             (
                 final_config.tls_cert_dir(),
@@ -1011,8 +1045,8 @@ mod tests {
             ),
             ("/my_files/", &ConfigSource::CommandLine)
         );
-        // The DefaultPartialConfigBuilder had a value for the ca_file, and since the cert_dir
-        // value was provided to the ClapPartialConfigBuilder, the cert_dir value should be
+        // The `DefaultPartialConfigBuilder` had a value for the `ca_file`, and since the `cert_dir`
+        // value was provided to the `ClapPartialConfigBuilder`, the `cert_dir` value should be
         // appended to the default file name.
         assert_eq!(
             (
@@ -1024,8 +1058,8 @@ mod tests {
                 &ConfigSource::Default,
             )
         );
-        // The DefaultPartialConfigBuilder had a value for the client_cert, and since the cert_dir
-        // value was provided to the ClapPartialConfigBuilder, the cert_dir value should be
+        // The `DefaultPartialConfigBuilder had a value for the client_cert, and since the `cert_dir`
+        // value was provided to the `ClapPartialConfigBuilder`, the `cert_dir` value should be
         // appended to the default file name.
         assert_eq!(
             (
@@ -1037,8 +1071,8 @@ mod tests {
                 &ConfigSource::Default,
             )
         );
-        // The DefaultPartialConfigBuilder had a value for the client_key, and since the cert_dir
-        // value was provided to the ClapPartialConfigBuilder, the cert_dir value should be
+        // The `DefaultPartialConfigBuilder` had a value for the `client_key`, and since the `cert_dir`
+        // value was provided to the `ClapPartialConfigBuilder`, the `cert_dir` value should be
         // appended to the default file name.
         assert_eq!(
             (
@@ -1050,9 +1084,9 @@ mod tests {
                 &ConfigSource::Default,
             )
         );
-        // The DefaultPartialConfigBuilder had a value for the server_cert, and since the cert_dir
-        // value was provided to the ClapPartialConfigBuilder, the cert_dir value should be
-        // appended to the default file name.
+        // The `DefaultPartialConfigBuilder` had a value for the `server_cert`, and since the
+        // `cert_dir` value was provided to the `ClapPartialConfigBuilder`, the `cert_dir` value
+        // should be appended to the default file name.
         assert_eq!(
             (
                 final_config.tls_server_cert(),
@@ -1063,9 +1097,9 @@ mod tests {
                 &ConfigSource::Default,
             )
         );
-        // The DefaultPartialConfigBuilder had a value for the server_key, and since the cert_dir
-        // value was provided to the ClapPartialConfigBuilder, the cert_dir value should be
-        // appended to the default file name.
+        // The `DefaultPartialConfigBuilder` had a value for the `server_key`, and since the
+        // `cert_dir` value was provided to the `ClapPartialConfigBuilder`, the `cert_dir` value
+        // should be appended to the default file name.
         assert_eq!(
             (
                 final_config.tls_server_key(),

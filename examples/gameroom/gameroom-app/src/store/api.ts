@@ -40,15 +40,17 @@ gameroomAPI.interceptors.response.use(
     if (error.response) {
       switch (error.response.status) {
         case 401:
-          throw new Error('Incorrect username or password.');
+          console.error('Incorrect username or password');
+          throw error;
         case 500:
-          throw new Error(
-            'The Gameroom server has encountered an error. Please contact the administrator.',
-          );
+          console.error('The Gameroom server is unavailable. Please contact the administrator.');
+          throw error;
         case 503:
-          throw new Error('The Gameroom server is unavailable. Please contact the administrator.');
+          console.error('The Gameroom server is unavailable. Please contact the administrator.');
+          throw error;
         default:
-          throw new Error(error.response.data.message);
+          console.error('Encountered an error.');
+          throw error;
       }
     }
   },
@@ -70,7 +72,8 @@ async function http(
       if (request.status >= 200 && request.status < 300) {
         resolve(request.response);
       } else {
-        console.error(request);
+        const responseBody = JSON.parse(request.responseText);
+        console.error(responseBody.message);
         if (request.status >= 400 && request.status < 500) {
           reject('Failed to send request. Contact the administrator for help.');
         } else {

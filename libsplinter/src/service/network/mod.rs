@@ -16,6 +16,8 @@
 //! with services processors over connections.
 
 mod error;
+pub mod handlers;
+pub mod interconnect;
 
 use std::collections::{BTreeMap, HashMap};
 use std::sync::mpsc::{self, Receiver, Sender};
@@ -25,6 +27,62 @@ use crate::network::connection_manager::{ConnectionManagerNotification, Connecto
 
 use self::error::ServiceConnectionAgentError;
 pub use self::error::ServiceConnectionError;
+
+pub type SubscriberId = usize;
+type Subscriber =
+    Box<dyn Fn(ServiceConnectionNotification) -> Result<(), Box<dyn std::error::Error>> + Send>;
+
+struct SubscriberMap {
+    subscribers: HashMap<SubscriberId, Subscriber>,
+    next_id: SubscriberId,
+}
+
+impl SubscriberMap {
+    fn new() -> Self {
+        Self {
+            subscribers: HashMap::new(),
+            next_id: 0,
+        }
+    }
+
+    fn notify_all(&mut self, notification: ServiceConnectionNotification) {
+        let mut failures = vec![];
+        for (id, callback) in self.subscribers.iter() {
+            if let Err(err) = (*callback)(notification.clone()) {
+                failures.push(*id);
+                debug!("Dropping subscriber ({}): {}", id, err);
+            }
+        }
+
+        for id in failures {
+            self.subscribers.remove(&id);
+        }
+    }
+
+    fn add_subscriber(&mut self, subscriber: Subscriber) -> SubscriberId {
+        let subscriber_id = self.next_id;
+        self.next_id += 1;
+        self.subscribers.insert(subscriber_id, subscriber);
+
+        subscriber_id
+    }
+
+    fn remove_subscriber(&mut self, subscriber_id: SubscriberId) {
+        self.subscribers.remove(&subscriber_id);
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum ServiceConnectionNotification {
+    Connected {
+        service_id: String,
+        endpoint: String,
+    },
+    Disconnected {
+        service_id: String,
+        endpoint: String,
+    },
+}
 
 /// Constructs new ServiceConnectionManager structs.
 ///
@@ -102,6 +160,14 @@ enum AgentMessage {
         connection_id: String,
         reply_sender: Sender<Result<Option<String>, ServiceConnectionError>>,
     },
+    Subscribe {
+        subscriber: Subscriber,
+        reply_sender: Sender<Result<SubscriberId, ServiceConnectionError>>,
+    },
+    Unsubscribe {
+        subscriber_id: SubscriberId,
+        reply_sender: Sender<Result<(), ServiceConnectionError>>,
+    },
     Shutdown,
 }
 
@@ -116,6 +182,39 @@ pub struct ServiceConnectionManager {
 }
 
 impl ServiceConnectionManager {
+    /// Create a builder for a `ServiceConnectionManager`.
+    ///
+    /// For example:
+    ///
+    /// ```no_run
+    /// # use splinter::mesh::Mesh;
+    /// # use splinter::network::auth::AuthorizationManager;
+    /// # use splinter::network::connection_manager::{Authorizer, ConnectionManager};
+    /// # use splinter::service::network::ServiceConnectionManager;
+    /// # use splinter::transport::inproc::InprocTransport;
+    /// # let transport = InprocTransport::default();
+    /// # let mesh = Mesh::new(1, 1);
+    /// # let auth_mgr = AuthorizationManager::new("test_identity".into()).unwrap();
+    /// # let authorizer: Box<dyn Authorizer + Send> = Box::new(auth_mgr.authorization_connector());
+    /// let mut cm = ConnectionManager::builder()
+    ///     .with_authorizer(authorizer)
+    ///     .with_matrix_life_cycle(mesh.get_life_cycle())
+    ///     .with_matrix_sender(mesh.get_sender())
+    ///     .with_transport(Box::new(transport))
+    ///     .start()
+    ///     .expect("Unable to start Connection Manager");
+    ///
+    /// let connector = cm.connector();
+    ///
+    /// let service_connection_manager = ServiceConnectionManager::builder()
+    ///     .with_connector(connector)
+    ///     .start()
+    ///     .unwrap();
+    /// ```
+    pub fn builder() -> ServiceConnectionManagerBuilder {
+        ServiceConnectionManagerBuilder::new()
+    }
+
     /// Returns a shutdown signaler.
     pub fn shutdown_signaler(&self) -> ShutdownSignaler {
         ShutdownSignaler {
@@ -189,13 +288,13 @@ macro_rules! agent_msg {
         }
     };
 
-    ($sender:expr, $msg_type:ident { $($field:ident: $value:expr,)* }) => {
+    ($sender:expr, $msg_type:ident { $($fields:tt)* }) => {
         {
             let (tx, rx) = mpsc::channel();
             agent_msg!(@do_send $sender, rx,
                 AgentMessage::$msg_type {
                     reply_sender: tx,
-                    $($field: $value)*
+                    $($fields)*
                 })
         }
     };
@@ -249,6 +348,27 @@ impl ServiceConnector {
             }
         )
     }
+
+    pub fn subscribe<T>(
+        &self,
+        subscriber: Sender<T>,
+    ) -> Result<SubscriberId, ServiceConnectionError>
+    where
+        T: From<ServiceConnectionNotification> + Send + 'static,
+    {
+        agent_msg!(
+            self.sender,
+            Subscribe {
+                subscriber: Box::new(move |notification| {
+                    subscriber.send(T::from(notification)).map_err(Box::from)
+                }),
+            }
+        )
+    }
+
+    pub fn unsubscribe(&self, subscriber_id: SubscriberId) -> Result<(), ServiceConnectionError> {
+        agent_msg!(self.sender, Unsubscribe { subscriber_id })
+    }
 }
 
 pub struct ShutdownSignaler {
@@ -284,6 +404,7 @@ enum ConnectionStatus {
 struct ServiceConnectionAgent {
     services: ServiceConnectionMap,
     receiver: Receiver<AgentMessage>,
+    subscribers: SubscriberMap,
 }
 
 impl ServiceConnectionAgent {
@@ -291,6 +412,7 @@ impl ServiceConnectionAgent {
         Self {
             services: ServiceConnectionMap::new(),
             receiver,
+            subscribers: SubscriberMap::new(),
         }
     }
 
@@ -315,6 +437,14 @@ impl ServiceConnectionAgent {
                 }) => {
                     self.get_identity_for_connection_id(&connection_id, reply_sender)?;
                 }
+                Ok(AgentMessage::Subscribe {
+                    subscriber,
+                    reply_sender,
+                }) => self.add_subscriber(subscriber, reply_sender)?,
+                Ok(AgentMessage::Unsubscribe {
+                    subscriber_id,
+                    reply_sender,
+                }) => self.remove_subscriber(subscriber_id, reply_sender)?,
                 Ok(AgentMessage::Shutdown) => break Ok(()),
                 Err(_) => {
                     break Err(ServiceConnectionAgentError(
@@ -323,6 +453,24 @@ impl ServiceConnectionAgent {
                 }
             }
         }
+    }
+
+    fn add_subscriber(
+        &mut self,
+        subscriber: Subscriber,
+        reply_sender: Sender<Result<SubscriberId, ServiceConnectionError>>,
+    ) -> Result<(), ServiceConnectionAgentError> {
+        let subscriber_id = self.subscribers.add_subscriber(subscriber);
+        agent_reply!(reply_sender, Ok(subscriber_id))
+    }
+
+    fn remove_subscriber(
+        &mut self,
+        subscriber_id: SubscriberId,
+        reply_sender: Sender<Result<(), ServiceConnectionError>>,
+    ) -> Result<(), ServiceConnectionAgentError> {
+        self.subscribers.remove_subscriber(subscriber_id);
+        agent_reply!(reply_sender, Ok(()))
     }
 
     fn list_services(
@@ -371,27 +519,53 @@ impl ServiceConnectionAgent {
                 identity,
             } => {
                 self.services.add_connection(ServiceConnectionInfo {
-                    endpoint,
+                    endpoint: endpoint.clone(),
                     connection_id,
-                    identity,
+                    identity: identity.clone(),
                     status: ConnectionStatus::Connected,
                 });
+
+                self.subscribers
+                    .notify_all(ServiceConnectionNotification::Connected {
+                        service_id: identity,
+                        endpoint,
+                    })
             }
-            ConnectionManagerNotification::Disconnected { endpoint } => {
+            ConnectionManagerNotification::Disconnected { endpoint, .. } => {
                 if let Some(info) = self.services.get_connection_info_by_endpoint_mut(&endpoint) {
                     info.status = ConnectionStatus::Disconnected;
+                    self.subscribers
+                        .notify_all(ServiceConnectionNotification::Disconnected {
+                            service_id: info.identity.clone(),
+                            endpoint,
+                        });
                 }
             }
-            ConnectionManagerNotification::Connected { endpoint } => {
+            ConnectionManagerNotification::Connected { endpoint, .. } => {
                 if let Some(info) = self.services.get_connection_info_by_endpoint_mut(&endpoint) {
                     info.status = ConnectionStatus::Connected;
+                    self.subscribers
+                        .notify_all(ServiceConnectionNotification::Connected {
+                            service_id: info.identity.clone(),
+                            endpoint,
+                        });
                 }
             }
-            ConnectionManagerNotification::ReconnectionFailed { endpoint, attempts } => {
+            ConnectionManagerNotification::NonFatalConnectionError {
+                endpoint, attempts, ..
+            } => {
                 if let Some(info) = self.services.remove_connection_by_endoint(&endpoint) {
                     error!(
                         "Failed to reconnect to service processor {} after {}] attempts; removing",
                         info.identity, attempts
+                    );
+                }
+            }
+            ConnectionManagerNotification::FatalConnectionError { endpoint, error } => {
+                if let Some(info) = self.services.remove_connection_by_endoint(&endpoint) {
+                    error!(
+                        "Service processor {} connection failed: {}; removing",
+                        info.identity, error
                     );
                 }
             }
@@ -432,9 +606,9 @@ impl ServiceConnectionMap {
         self.by_endpoint
             .remove(endpoint)
             .and_then(|identity| self.services.remove(&identity))
-            .and_then(|info| {
+            .map(|info| {
                 self.by_connection_id.remove(&info.connection_id);
-                Some(info)
+                info
             })
     }
 
@@ -494,18 +668,15 @@ mod tests {
         let mut listener = transport.listen("inproc://test_service_connected").unwrap();
 
         let mesh = Mesh::new(512, 128);
-        let mut cm = ConnectionManager::new(
-            Box::new(NoopAuthorizer::new("service-id")),
-            mesh.get_life_cycle(),
-            mesh.get_sender(),
-            Box::new(transport.clone()),
-            None,
-            None,
-        );
-        let connector = cm.start().expect("Unable to start Connection Manager");
-        let mut subscriber = connector
-            .subscription_iter()
-            .expect("Unable to get subscriber");
+        let cm = ConnectionManager::builder()
+            .with_authorizer(Box::new(NoopAuthorizer::new("service-id")))
+            .with_matrix_life_cycle(mesh.get_life_cycle())
+            .with_matrix_sender(mesh.get_sender())
+            .with_transport(Box::new(transport.clone()))
+            .start()
+            .expect("Unable to start Connection Manager");
+
+        let connector = cm.connector();
 
         let (conn_tx, conn_rx) = mpsc::channel();
 
@@ -523,21 +694,35 @@ mod tests {
             .start()
             .expect("Unable to start service manager");
 
+        let service_connector = service_conn_mgr.service_connector();
+        let (subs_tx, subs_rx) = mpsc::channel();
+        service_connector
+            .subscribe(subs_tx)
+            .expect("Unable to get subscriber");
+
         let connection = listener.accept().unwrap();
         connector
             .add_inbound_connection(connection)
             .expect("Unable to add inbound connection");
 
         // wait to receive the notification
-        subscriber.next().unwrap();
+        let notification: ServiceConnectionNotification = subs_rx.recv().unwrap();
+        match notification {
+            ServiceConnectionNotification::Connected {
+                endpoint,
+                service_id,
+            } => {
+                assert_eq!(endpoint, "inproc://test_service_connected".to_string());
+                assert_eq!(service_id, "service-id".to_string());
+            }
+            _ => panic!("Unexpected notification: {:?}", notification),
+        }
 
-        let service_connector = service_conn_mgr.service_connector();
         let service_connections = service_connector
             .list_service_connections()
             .expect("Unable to list service_connections");
 
         assert_eq!(vec!["service-id"], service_connections);
-
         let connection_id = service_connector
             .get_connection_id("service-id")
             .expect("Unable to get the connection_id");
@@ -555,7 +740,8 @@ mod tests {
         jh.join().unwrap();
 
         service_conn_mgr.shutdown_and_wait();
-        cm.shutdown_and_wait();
+        cm.shutdown_signaler().shutdown();
+        cm.await_shutdown();
     }
 
     struct NoopAuthorizer {

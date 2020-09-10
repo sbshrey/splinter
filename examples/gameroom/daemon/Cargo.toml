@@ -14,14 +14,14 @@
 
 [package]
 name = "gameroom-daemon"
-version = "0.3.17"
+version = "0.5.1"
 authors = ["Cargill Incorporated"]
 edition = "2018"
 license = "Apache-2.0"
 description = """\
     Gameroom is an example Splinter application that allows you to set up \
     private, multi-party circuits (called "gamerooms") and play tic tac toe \
-    with shared state, as managed by two-phase-commit consensus between the \
+    with shared state, as managed by two-phase commit consensus between the \
     participants.
 """
 
@@ -49,12 +49,24 @@ percent-encoding = "2.0"
 protobuf = "2"
 sabre-sdk = "0.5"
 sawtooth-sdk = { version = "0.4", features = ["transact-compat"] }
+scabbard = { path = "../../../services/scabbard/libscabbard", features = ["events"] }
 serde = "1.0"
 serde_derive = "1.0"
 serde_json = "1.0"
-splinter = { path = "../../../libsplinter", features = ["events"]}
+reqwest = { version = "0.10", features = ["blocking"] }
 tokio = "0.1"
 transact = "0.2"
+
+[dependencies.splinter]
+path = "../../../libsplinter"
+features = [
+    "biome",
+    "events",
+    "postgres",
+    "registry",
+    "circuit-template",
+]
+
 
 [features]
 default = []

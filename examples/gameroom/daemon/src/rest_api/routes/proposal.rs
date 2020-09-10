@@ -24,7 +24,6 @@ use gameroom_database::{
 use openssl::hash::{hash, MessageDigest};
 use protobuf::Message;
 use splinter::admin::messages::CircuitProposalVote;
-use splinter::node_registry::Node;
 use splinter::protos::admin::{
     CircuitManagementPayload, CircuitManagementPayload_Action as Action,
     CircuitManagementPayload_Header as Header,
@@ -34,6 +33,8 @@ use super::{
     get_response_paging_info, validate_limit, ErrorResponse, SuccessResponse, DEFAULT_LIMIT,
     DEFAULT_OFFSET,
 };
+
+use crate::config::NodeInfo;
 use crate::rest_api::RestApiResponseError;
 
 #[derive(Debug, Serialize)]
@@ -171,7 +172,7 @@ fn list_proposals_from_db(
             .into_iter()
             .fold(HashMap::new(), |mut acc, member| {
                 acc.entry(member.circuit_id.to_string())
-                    .or_insert_with(|| vec![])
+                    .or_insert_with(Vec::new)
                     .push(member);
                 acc
             });
@@ -183,7 +184,7 @@ fn list_proposals_from_db(
                 proposal,
                 proposal_members
                     .remove(&circuit_id)
-                    .unwrap_or_else(|| vec![]),
+                    .unwrap_or_else(Vec::new),
             )
         })
         .collect::<Vec<ApiGameroomProposal>>();
@@ -195,7 +196,7 @@ pub async fn proposal_vote(
     vote: web::Json<CircuitProposalVote>,
     proposal_id: web::Path<i64>,
     pool: web::Data<ConnectionPool>,
-    node_info: web::Data<Node>,
+    node_info: web::Data<NodeInfo>,
 ) -> Result<HttpResponse, Error> {
     let node_identity = node_info.identity.to_string();
     match web::block(move || check_proposal_exists(*proposal_id, pool)).await {
@@ -216,7 +217,10 @@ pub async fn proposal_vote(
                 RestApiResponseError::BadRequest(err) => {
                     Ok(HttpResponse::BadRequest().json(ErrorResponse::bad_request(&err)))
                 }
-                _ => Ok(HttpResponse::InternalServerError().json(ErrorResponse::internal_error())),
+                _ => {
+                    debug!("Internal Server Error: {}", err);
+                    Ok(HttpResponse::InternalServerError().json(ErrorResponse::internal_error()))
+                }
             },
             error::BlockingError::Canceled => {
                 debug!("Internal Server Error: {}", err);

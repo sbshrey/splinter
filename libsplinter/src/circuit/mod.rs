@@ -12,8 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#[cfg(feature = "service-network")]
+pub mod component;
 pub mod directory;
 pub mod handlers;
+#[cfg(feature = "routing-table")]
+pub mod routing;
 pub mod service;
 pub mod store;
 #[cfg(feature = "circuit-template")]

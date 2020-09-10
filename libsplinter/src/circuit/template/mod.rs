@@ -12,6 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//! Data structures that manage and use templates to create circuit templates.
+//!
+//! The public interface includes the structs [`CircuitTemplateManager`], and
+//! [`CircuitCreateTemplate`].
+//!
+//! [`CircuitTemplateManager`]: struct.CircuitTemplateManager.html
+//! [`CircuitCreateTemplate`]: struct.CircuitCreateTemplate.html
+
 mod error;
 mod rules;
 mod yaml_parser;
@@ -28,13 +36,20 @@ use yaml_parser::{v1, CircuitTemplate};
 
 pub(self) use crate::admin::messages::{CreateCircuitBuilder, SplinterServiceBuilder};
 
+/// Default file location for circuit templates
 pub const DEFAULT_TEMPLATE_DIR: &str = "/usr/share/splinter/circuit-templates";
 
+/// Manages circuit templates.
+///
+/// `CircuitTemplateManager` maintains the location of circuit templates, and may be used to
+/// list any availabe circuit templates found in the `path` of the `CircuitTemplateManager`.
 pub struct CircuitTemplateManager {
+    /// Path of the directory containing the circuit template files.
     path: String,
 }
 
 impl Default for CircuitTemplateManager {
+    /// Constructs a `CircuitTemplateManager` with the `DEFAULT_TEMPLATE_DIR`.
     fn default() -> Self {
         CircuitTemplateManager {
             path: DEFAULT_TEMPLATE_DIR.to_string(),
@@ -43,6 +58,7 @@ impl Default for CircuitTemplateManager {
 }
 
 impl CircuitTemplateManager {
+    /// Constructs a `CircuitTemplateManager` with a custom `path` to the circuit templates.
     pub fn new(path: &str) -> Result<CircuitTemplateManager, CircuitTemplateError> {
         if !Path::new(&path).is_dir() {
             Err(CircuitTemplateError::new(&format!(
@@ -56,13 +72,21 @@ impl CircuitTemplateManager {
         }
     }
 
-    /// Loads a YAML circuit template file into a CircuitCreateTemplate
+    /// Loads the specified YAML circuit template file into a CircuitCreateTemplate.
+    ///
+    /// # Arguments
+    ///
+    /// * `name` - file name indicating the circuit template to be loaded.
     pub fn load(&self, name: &str) -> Result<CircuitCreateTemplate, CircuitTemplateError> {
         let path = format!("{}/{}.yaml", self.path, name);
         CircuitCreateTemplate::from_yaml_file(&path)
     }
 
-    /// Loads a YAML circuit template file into a YAML string
+    /// Loads the specified YAML circuit template file into a YAML string.
+    ///
+    /// # Arguments
+    ///
+    /// * `name` - file name indicating the circuit template to be loaded into a YAML string.
     pub fn load_raw_yaml(&self, name: &str) -> Result<String, CircuitTemplateError> {
         let path = format!("{}/{}.yaml", self.path, name);
         let template = CircuitTemplate::load_from_file(&path)?;
@@ -76,46 +100,55 @@ impl CircuitTemplateManager {
         }
     }
 
+    /// Lists all available circuit templates found in the `path` of the `CircuitTemplateManager`.
     pub fn list_available_templates(&self) -> Result<Vec<String>, CircuitTemplateError> {
         let path = Path::new(&self.path);
-
-        path.read_dir()
+        let available_templates = path
+            .read_dir()
             .map_err(|err| {
                 CircuitTemplateError::new_with_source(
-                    &format!("Failed to read files in {}", self.path),
+                    &format!("Failed to read circuit template files in {}", self.path),
                     Box::new(err),
                 )
             })?
-            .map(|entry| {
-                let file = entry.map_err(|err| {
-                    CircuitTemplateError::new_with_source(
-                        &format!("Failed to read file in {}", self.path),
-                        Box::new(err),
-                    )
-                })?;
-                Ok(file
-                    .file_name()
-                    .into_string()
-                    .map_err(|_| {
-                        CircuitTemplateError::new(&format!(
-                            "Failed to read file name {}",
-                            self.path
-                        ))
-                    })?
-                    .trim_end_matches(".yaml")
-                    .to_string())
+            .filter_map(|entry| match entry {
+                Ok(file) => match file.file_name().into_string() {
+                    Ok(name) => Some(name.trim_end_matches(".yaml").to_string()),
+                    Err(_) => {
+                        error!("Unable to read circuit template file name: {}", self.path);
+                        None
+                    }
+                },
+                Err(err) => {
+                    error!("Unable to read circuit template file: {}", err);
+                    None
+                }
             })
-            .collect::<Result<_, CircuitTemplateError>>()
+            .collect::<Vec<String>>();
+
+        Ok(available_templates)
     }
 }
 
+/// Generates a `CreateCircuitBuilder` from a circuit template file.
+///
+/// The circuit template outlines all required information to generate a `CreateCircuitBuilder`.
+/// The required `arguments`, set by the circuit template, are used in conjunction with the template
+/// `rules` to create the `CreateCircuitBuilder`.
 pub struct CircuitCreateTemplate {
     version: String,
+    /// Necessary arguments to build a `CreateCircuitBuilder` from the `CircuitCreateTemplate`.
     arguments: Vec<RuleArgument>,
+    /// Automated process to define more complex entries of the `CreateCircuitBuilder`.
     rules: Rules,
 }
 
 impl CircuitCreateTemplate {
+    /// Constructs a `CircuitCreateTemplate` from the specified YAML file.
+    ///
+    /// # Arguments
+    ///
+    /// * `path` - Path of the circuit template file.
     pub fn from_yaml_file(path: &str) -> Result<Self, CircuitTemplateError> {
         let circuit_template = CircuitTemplate::load_from_file(path)?;
         match circuit_template {
@@ -123,17 +156,25 @@ impl CircuitCreateTemplate {
         }
     }
 
-    pub fn into_builders(self) -> Result<Builders, CircuitTemplateError> {
-        let mut builders = Builders {
-            create_circuit_builder: CreateCircuitBuilder::new(),
-            service_builders: vec![],
-        };
-
-        self.rules.apply_rules(&mut builders, &self.arguments)?;
-
-        Ok(builders)
+    /// Updates a `CreateCircuitBuilder` based on the template argument values.
+    ///
+    /// Applies all `rules` from the circuit template using the data saved in the `arguments` to
+    /// a `CreateCircuitBuilder`. Also adds services created from the circuit template to the
+    /// returned builder if the `create_services` rule is in the template.
+    pub fn apply_to_builder(
+        &self,
+        circuit_builder: CreateCircuitBuilder,
+    ) -> Result<CreateCircuitBuilder, CircuitTemplateError> {
+        let circuit_builder = self.rules.apply_rules(circuit_builder, &self.arguments)?;
+        Ok(circuit_builder)
     }
 
+    /// Set a required argument for a specific circuit template.
+    ///
+    /// # Arguments
+    ///
+    /// * `key` - Name of the argument to be set.
+    /// * `value` - Value of the argument to be set.
     pub fn set_argument_value(
         &mut self,
         key: &str,
@@ -191,29 +232,6 @@ impl TryFrom<v1::CircuitCreateTemplate> for CircuitCreateTemplate {
     }
 }
 
-pub struct Builders {
-    create_circuit_builder: CreateCircuitBuilder,
-    service_builders: Vec<SplinterServiceBuilder>,
-}
-
-impl Builders {
-    pub fn set_create_circuit_builder(&mut self, builder: CreateCircuitBuilder) {
-        self.create_circuit_builder = builder;
-    }
-
-    pub fn set_service_builders(&mut self, builders: Vec<SplinterServiceBuilder>) {
-        self.service_builders = builders;
-    }
-
-    pub fn create_circuit_builder(&self) -> CreateCircuitBuilder {
-        self.create_circuit_builder.clone()
-    }
-
-    pub fn service_builders(&self) -> Vec<SplinterServiceBuilder> {
-        self.service_builders.clone()
-    }
-}
-
 #[cfg(test)]
 mod test {
     use super::*;
@@ -223,16 +241,19 @@ mod test {
 
     use tempdir::TempDir;
 
+    use crate::admin::messages::SplinterService;
+
+    /// Example circuit template YAML file.
     const EXAMPLE_TEMPLATE_YAML: &[u8] = br##"version: v1
 args:
-    - name: $(a:ADMIN_KEYS)
+    - name: ADMIN_KEYS
       required: false
-      default: $(a:SIGNER_PUB_KEY)
-    - name: $(a:NODES)
+      default: $(SIGNER_PUB_KEY)
+    - name: NODES
       required: true
-    - name: $(a:SIGNER_PUB_KEY)
+    - name: SIGNER_PUB_KEY
       required: false
-    - name: $(a:GAMEROOM_NAME)
+    - name: GAMEROOM_NAME
       required: true
 rules:
     set-management-type:
@@ -241,22 +262,31 @@ rules:
         service-type: 'scabbard'
         service-args:
         - key: 'admin-keys'
-          value: [$(a:ADMIN_KEYS)]
+          value: [$(ADMIN_KEYS)]
         - key: 'peer_services'
-          value: '$(r:ALL_OTHER_SERVICES)'
+          value: '$(ALL_OTHER_SERVICES)'
         first-service: 'a000'
     set-metadata:
         encoding: json
         metadata:
             - key: "scabbard_admin_keys"
-              value: ["$(a:ADMIN_KEYS)"]
+              value: ["$(ADMIN_KEYS)"]
             - key: "alias"
-              value: "$(a:GAMEROOM_NAME)" "##;
+              value: "$(GAMEROOM_NAME)" "##;
 
-    /*
-     * Verifies that Builders can be parsed from template v1 and correctly
-     * applies the set-management-type, create-services and set-metadata rules correctly
-     */
+    /// Verifies the builder can be parsed from template v1 and has the correctly applied
+    /// `set-management-type`, `create-services` and `set-metadata` `rules`.
+    ///
+    /// The test follows the procedure below:
+    /// 1. Sets up a temporary directory, to write a circuit template YAML file from the
+    ///    `EXAMPLE_TEMPLATE_YAML`.
+    /// 2. After building a `CircuitCreateTemplate` from the circuit template YAML file, the required
+    ///    `arguments` are set. These `arguments` are specific to the circuit template YAML file.
+    /// 3. Apply the `CircuitCreateTemplate` to a `CreateCircuitBuilder`.
+    ///
+    /// Once the `CreateCircuitBuilder` object has been created, the values are asserted against
+    /// the expected values. This verifies the `CircuitCreateTemplate` `rules` have been used
+    /// applied successfully to the `arguments`.
     #[test]
     fn test_builds_template_v1() {
         let temp_dir = TempDir::new("test_builds_template_v1").unwrap();
@@ -277,11 +307,10 @@ rules:
             .set_argument_value("gameroom_name", "my gameroom")
             .expect("Error setting argument");
 
-        let builders = template
-            .into_builders()
+        let circuit_create_builder = template
+            .apply_to_builder(CreateCircuitBuilder::new())
             .expect("Error getting builders from templates");
 
-        let circuit_create_builder = builders.create_circuit_builder();
         assert_eq!(
             circuit_create_builder.circuit_management_type(),
             Some("gameroom".to_string())
@@ -298,21 +327,19 @@ rules:
             "{\"scabbard_admin_keys\":[\"signer_key\"],\"alias\":\"my gameroom\"}"
         );
 
-        let service_builders = builders.service_builders();
+        let service_builders: Vec<SplinterService> = circuit_create_builder
+            .roster()
+            .ok_or(0)
+            .expect("Unable to get roster");
         let service_alpha_node = service_builders
             .iter()
-            .find(|service| service.allowed_nodes() == Some(vec!["alpha-node-000".to_string()]))
+            .find(|service| service.allowed_nodes == vec!["alpha-node-000".to_string()])
             .expect("service builder for alpha-node was not created correctly");
 
-        assert_eq!(service_alpha_node.service_id(), Some("a000".to_string()));
-        assert_eq!(
-            service_alpha_node.service_type(),
-            Some("scabbard".to_string())
-        );
+        assert_eq!(service_alpha_node.service_id, "a000".to_string());
+        assert_eq!(service_alpha_node.service_type, "scabbard".to_string());
 
-        let alpha_service_args = service_alpha_node
-            .arguments()
-            .expect("service for alpha node has no arguments set");
+        let alpha_service_args = &service_alpha_node.arguments;
         assert!(alpha_service_args
             .iter()
             .any(|(key, value)| key == "admin-keys" && value == "[\"signer_key\"]"));
@@ -322,18 +349,13 @@ rules:
 
         let service_beta_node = service_builders
             .iter()
-            .find(|service| service.allowed_nodes() == Some(vec!["beta-node-000".to_string()]))
+            .find(|service| service.allowed_nodes == vec!["beta-node-000".to_string()])
             .expect("service builder for beta-node was not created correctly");
 
-        assert_eq!(service_beta_node.service_id(), Some("a001".to_string()));
-        assert_eq!(
-            service_beta_node.service_type(),
-            Some("scabbard".to_string())
-        );
+        assert_eq!(service_beta_node.service_id, "a001".to_string());
+        assert_eq!(service_beta_node.service_type, "scabbard".to_string());
 
-        let beta_service_args = service_beta_node
-            .arguments()
-            .expect("service for beta node has no arguments set");
+        let beta_service_args = &service_beta_node.arguments;
         assert!(beta_service_args
             .iter()
             .any(|(key, value)| key == "admin-keys" && value == "[\"signer_key\"]"));

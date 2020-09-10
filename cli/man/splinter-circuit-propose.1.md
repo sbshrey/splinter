@@ -1,4 +1,9 @@
 % SPLINTER-CIRCUIT-PROPOSE(1) Cargill, Incorporated | Splinter Commands
+<!--
+  Copyright 2018-2020 Cargill Incorporated
+  Licensed under Creative Commons Attribution 4.0 International License
+  https://creativecommons.org/licenses/by/4.0/
+-->
 
 NAME
 ====
@@ -65,10 +70,10 @@ OPTIONS
 
 `--node NODE-STRING` ...
 : Specifies a node that should be part of the circuit, using the format
-  `NODE-ID::ENDPOINT1,ENDPOINT2`. All endpoints must be in the node's entry in
-  the node registry. The proposer must also specify its own node, if it is to
-  be included on the circuit proposal. Repeat this option to specify multiple
-  nodes.
+  `NODE-ID::ENDPOINT1,ENDPOINT2`. All endpoints must be in the registry entry
+  for the given node ID. The proposer must also specify its own node, if it is
+  to be be included on the circuit proposal. Repeat this option to specify
+  multiple nodes.
 
 `--service SERVICE-STRING` ...
 : Specifies the service ID and allowed nodes, using the format
@@ -186,4 +191,4 @@ SEE ALSO
 | `splinter-circuit-template(1)`
 | `splinter-circuit-vote(1)`
 |
-| Splinter documentation: https://github.com/Cargill/splinter-docs/blob/master/docs/index.md
+| Splinter documentation: https://www.splinter.dev/docs/0.5/

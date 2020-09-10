@@ -12,37 +12,50 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//! Data structure and implementation of the circuit template representation for the CLI.
+
 use std::collections::HashMap;
 
 use splinter::circuit::template::{
-    Builders, CircuitCreateTemplate, CircuitTemplateError, CircuitTemplateManager, RuleArgument,
+    CircuitCreateTemplate, CircuitTemplateError, CircuitTemplateManager, RuleArgument,
 };
 
+use crate::action::circuit::CreateCircuitMessageBuilder;
 use crate::error::CliError;
 
 const NODES_ARG: &str = "nodes";
 
+/// Representation of a circuit template used in CLI actions.
 pub struct CircuitTemplate {
     template: CircuitCreateTemplate,
     arguments: HashMap<String, String>,
 }
 
 impl CircuitTemplate {
+    /// Lists all available circuit templates found in the default template directory.
     pub fn list_available_templates() -> Result<Vec<String>, CliError> {
         let manager = CircuitTemplateManager::default();
         let templates = manager.list_available_templates()?;
         Ok(templates)
     }
 
-    /// Loads a YAML circuit template file into a YAML string
+    /// Loads a YAML circuit template file into a YAML string.
+    ///
+    /// # Arguments
+    ///
+    /// * `name` - File name of the circuit template YAML file.
     pub fn load_raw(name: &str) -> Result<String, CliError> {
         let manager = CircuitTemplateManager::default();
         let template_yaml = manager.load_raw_yaml(name)?;
         Ok(template_yaml)
     }
 
-    /// Loads a YAML circuit template file and returns a CircuitTemplate that can be used to
-    /// build CircuitCreate messages.
+    /// Loads a YAML circuit template file and returns a `CircuitTemplate` that can be used to
+    /// build `CreateCircuit` messages.
+    ///
+    /// # Arguments
+    ///
+    /// * `name` - File name of the circuit template YAML file.
     pub fn load(name: &str) -> Result<Self, CliError> {
         let manager = CircuitTemplateManager::default();
         let possible_values = manager.list_available_templates()?;
@@ -75,6 +88,11 @@ impl CircuitTemplate {
             .collect()
     }
 
+    /// Sets the `nodes` argument, using node IDs, for the `CircuitTemplate`.
+    ///
+    /// # Arguments
+    ///
+    /// * `nodes` - List of node IDs from the available template arguments.
     pub fn set_nodes(&mut self, nodes: &[String]) {
         if self
             .template
@@ -87,15 +105,31 @@ impl CircuitTemplate {
         }
     }
 
+    /// Adds additional template argument, represented by a HashMap, to the `CircuitTemplate`.
+    ///
+    /// # Arguments
+    ///
+    /// * `user_arguments` - HashMap of arguments to be added to the `CircuitTemplate`.
     pub fn add_arguments(&mut self, user_arguments: &HashMap<String, String>) {
         self.arguments.extend(user_arguments.clone())
     }
 
+    /// Returns a list of `arguments` stored in the `CircuitTemplate`.
     pub fn arguments(&self) -> &[RuleArgument] {
         self.template.arguments()
     }
 
-    pub fn into_builders(mut self) -> Result<Builders, CliError> {
+    /// Updates a `CreateCircuitMessageBuilder` based on the template argument values.
+    ///
+    /// Applies all `rules` from the circuit template using the data saved in the `arguments` to
+    /// a `CreateCircuitMessageBuilder`. Also adds services created from the circuit template to
+    /// the returned builder if the `create_services` rule is in the template.
+    pub fn apply_to_builder(
+        mut self,
+        circuit_message_builder: &mut CreateCircuitMessageBuilder,
+    ) -> Result<(), CliError> {
+        let circuit_builder = circuit_message_builder.create_circuit_builder();
+
         let missing_args = self.check_missing_required_arguments();
         if !missing_args.is_empty() {
             return Err(CliError::ActionError(format!(
@@ -108,7 +142,10 @@ impl CircuitTemplate {
             self.template.set_argument_value(key, value)?;
         }
 
-        Ok(self.template.into_builders()?)
+        circuit_message_builder
+            .set_create_circuit_builder(&self.template.apply_to_builder(circuit_builder)?);
+
+        Ok(())
     }
 }
 

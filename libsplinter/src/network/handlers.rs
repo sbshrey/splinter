@@ -109,79 +109,79 @@ impl NetworkHeartbeatHandler {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mesh::Mesh;
+
+    use std::collections::VecDeque;
+    use std::sync::{Arc, Mutex};
+
     use crate::network::dispatch::Dispatcher;
-    use crate::network::sender;
-    use crate::network::Network;
     use crate::protos::network::{NetworkEcho, NetworkMessageType};
-    use crate::transport::inproc::InprocTransport;
-    use crate::transport::Transport;
 
     #[test]
     fn dispatch_to_handler() {
-        // Set up dispatcher and mock sender
-        let mesh1 = Mesh::new(1, 1);
-        let network1 = Network::new(mesh1.clone(), 0).unwrap();
+        let network_sender = MockSender::new();
+        let mut dispatcher: Dispatcher<NetworkMessageType> =
+            Dispatcher::new(Box::new(network_sender.clone()));
 
-        let network_message_queue = sender::Builder::new()
-            .with_network(network1.clone())
-            .build()
-            .expect("Unable to create queue");
-        let network_sender = network_message_queue.new_network_sender();
+        let handler = NetworkEchoHandler::new("TestPeer".to_string());
 
-        let mut inproc_transport = InprocTransport::default();
-        let mut dispatcher: Dispatcher<NetworkMessageType> = Dispatcher::new(network_sender);
-        let mut listener = inproc_transport
-            .listen("inproc://network_echo")
-            .expect("Cannot get listener");
+        dispatcher.set_handler(Box::new(handler));
 
-        std::thread::spawn(move || {
-            let connection = listener.accept().expect("Cannot accept connection");
-            network1
-                .add_peer("OTHER_PEER".to_string(), connection)
-                .expect("Unable to add peer");
+        let msg = {
+            let mut echo = NetworkEcho::new();
+            echo.set_payload(b"HelloWorld".to_vec());
+            echo.set_recipient("TestPeer".to_string());
+            echo.set_time_to_live(3);
+            echo
+        };
 
-            let handler = NetworkEchoHandler::new("TestPeer".to_string());
+        let outgoing_message_bytes = msg.write_to_bytes().unwrap();
 
-            dispatcher.set_handler(Box::new(handler));
+        assert_eq!(
+            Ok(()),
+            dispatcher.dispatch(
+                "OTHER_PEER".into(),
+                &NetworkMessageType::NETWORK_ECHO,
+                outgoing_message_bytes.clone()
+            )
+        );
 
-            let msg = {
-                let mut echo = NetworkEcho::new();
-                echo.set_payload(b"HelloWorld".to_vec());
-                echo.set_recipient("TestPeer".to_string());
-                echo.set_time_to_live(3);
-                echo
-            };
+        let (_, network_message) = network_sender
+            .next_outbound()
+            .expect("Unable to get expected message");
 
-            let outgoing_message_bytes = msg.write_to_bytes().unwrap();
-
-            assert_eq!(
-                Ok(()),
-                dispatcher.dispatch(
-                    "OTHER_PEER".into(),
-                    &NetworkMessageType::NETWORK_ECHO,
-                    outgoing_message_bytes.clone()
-                )
-            );
-        });
-
-        let mesh2 = Mesh::new(1, 1);
-        let network2 = Network::new(mesh2.clone(), 0).unwrap();
-        let connection = inproc_transport
-            .connect("inproc://network_echo")
-            .expect("Unable to connect to inproc");
-        network2
-            .add_peer("TestPeer".to_string(), connection)
-            .expect("Unable to add peer");
-        let network_message = network2
-            .recv()
-            .expect("Unable to receive message over the network");
-        let network_msg: NetworkMessage =
-            protobuf::parse_from_bytes(network_message.payload()).unwrap();
+        let network_msg: NetworkMessage = protobuf::parse_from_bytes(&network_message).unwrap();
         let echo: NetworkEcho = protobuf::parse_from_bytes(network_msg.get_payload()).unwrap();
 
         assert_eq!(echo.get_recipient(), "TestPeer");
         assert_eq!(echo.get_time_to_live(), 2);
         assert_eq!(echo.get_payload().to_vec(), b"HelloWorld".to_vec());
+    }
+
+    #[derive(Clone)]
+    struct MockSender {
+        outbound: Arc<Mutex<VecDeque<(PeerId, Vec<u8>)>>>,
+    }
+
+    impl MockSender {
+        fn new() -> Self {
+            Self {
+                outbound: Arc::new(Mutex::new(VecDeque::new())),
+            }
+        }
+
+        fn next_outbound(&self) -> Option<(PeerId, Vec<u8>)> {
+            self.outbound.lock().expect("lock was poisoned").pop_front()
+        }
+    }
+
+    impl MessageSender<PeerId> for MockSender {
+        fn send(&self, id: PeerId, message: Vec<u8>) -> Result<(), (PeerId, Vec<u8>)> {
+            self.outbound
+                .lock()
+                .expect("lock was poisoned")
+                .push_back((id, message));
+
+            Ok(())
+        }
     }
 }

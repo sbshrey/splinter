@@ -18,12 +18,15 @@ use std::time::{Duration, Instant};
 
 use actix_web::{client::Client, dev::Body, error, http::StatusCode, web, Error, HttpResponse};
 use gameroom_database::{helpers, ConnectionPool};
-use splinter::node_registry::Node;
-use splinter::protocol;
-use splinter::service::scabbard::{BatchInfo, BatchStatus};
+use scabbard::{
+    protocol::SCABBARD_PROTOCOL_VERSION,
+    service::{BatchInfo, BatchStatus},
+};
+use splinter::protocol::ADMIN_PROTOCOL_VERSION;
 
 use super::{ErrorResponse, SuccessResponse};
 
+use crate::config::NodeInfo;
 use crate::rest_api::RestApiResponseError;
 
 const DEFAULT_WAIT: u64 = 30; // default wait time in seconds for batch to be commited
@@ -37,7 +40,7 @@ pub async fn submit_signed_payload(
         .post(format!("{}/admin/submit", *splinterd_url))
         .header(
             "SplinterProtocolVersion",
-            protocol::ADMIN_PROTOCOL_VERSION.to_string(),
+            ADMIN_PROTOCOL_VERSION.to_string(),
         )
         .send_body(Body::Bytes(signed_payload))
         .await
@@ -74,7 +77,7 @@ pub async fn submit_scabbard_payload(
     splinterd_url: web::Data<String>,
     pool: web::Data<ConnectionPool>,
     circuit_id: web::Path<String>,
-    node_info: web::Data<Node>,
+    node_info: web::Data<NodeInfo>,
     signed_payload: web::Bytes,
     query: web::Query<HashMap<String, String>>,
 ) -> Result<HttpResponse, Error> {
@@ -119,7 +122,7 @@ pub async fn submit_scabbard_payload(
         ))
         .header(
             "SplinterProtocolVersion",
-            protocol::SCABBARD_PROTOCOL_VERSION.to_string(),
+            SCABBARD_PROTOCOL_VERSION.to_string(),
         )
         .send_body(Body::Bytes(signed_payload))
         .await?;
@@ -200,7 +203,10 @@ pub async fn submit_scabbard_payload(
             RestApiResponseError::BadRequest(message) => {
                 Ok(HttpResponse::BadRequest().json(ErrorResponse::bad_request(&message)))
             }
-            _ => Ok(HttpResponse::InternalServerError().json(ErrorResponse::internal_error())),
+            _ => {
+                debug!("Internal Server Error: {}", err);
+                Ok(HttpResponse::InternalServerError().json(ErrorResponse::internal_error()))
+            }
         },
     }
 }
@@ -272,7 +278,7 @@ async fn check_batch_status(
             .get(format!("{}{}", splinterd_url, link))
             .header(
                 "SplinterProtocolVersion",
-                protocol::SCABBARD_PROTOCOL_VERSION.to_string(),
+                SCABBARD_PROTOCOL_VERSION.to_string(),
             )
             .send()
             .await

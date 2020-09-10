@@ -12,16 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//! Provides functionality to apply available rule arguments to create a `SplinterServiceBuilder`.
+
 use crate::admin::messages::is_valid_service_id;
 use crate::base62::next_base62_string;
 
 use super::super::{yaml_parser::v1, CircuitTemplateError, SplinterServiceBuilder};
-use super::{get_argument_value, is_arg, RuleArgument, Value};
+use super::{get_argument_value, is_arg_value, RuleArgument, Value};
 
-const ALL_OTHER_SERVICES: &str = "$(r:ALL_OTHER_SERVICES)";
-const NODES_ARG: &str = "$(a:NODES)";
+const ALL_OTHER_SERVICES: &str = "$(ALL_OTHER_SERVICES)";
+const NODES_ARG: &str = "NODES";
 const PEER_SERVICES_ARG: &str = "peer_services";
 
+/// Data structure used to create a `SplinterServiceBuilder`.
 pub(super) struct CreateServices {
     service_type: String,
     service_args: Vec<ServiceArgument>,
@@ -29,6 +32,7 @@ pub(super) struct CreateServices {
 }
 
 impl CreateServices {
+    /// Builds a `SplinterServiceBuilder` using the available circuit template arguments.
     pub fn apply_rule(
         &self,
         template_arguments: &[RuleArgument],
@@ -73,7 +77,7 @@ impl CreateServices {
                     if arg.key == PEER_SERVICES_ARG && value == ALL_OTHER_SERVICES {
                         service_builders = all_services(service_builders)?;
                     } else {
-                        let value = if is_arg(&value) {
+                        let value = if is_arg_value(&value) {
                             get_argument_value(&value, template_arguments)?
                         } else {
                             value.clone()
@@ -87,7 +91,7 @@ impl CreateServices {
                         .try_fold::<_, _, Result<_, CircuitTemplateError>>(
                             Vec::new(),
                             |mut acc, value| {
-                                let value = if is_arg(&value) {
+                                let value = if is_arg_value(&value) {
                                     get_argument_value(&value, template_arguments)?
                                 } else {
                                     value.to_string()
@@ -147,14 +151,19 @@ impl From<v1::ServiceArgument> for ServiceArgument {
 fn all_services(
     service_builders: Vec<SplinterServiceBuilder>,
 ) -> Result<Vec<SplinterServiceBuilder>, CircuitTemplateError> {
-    let peers = service_builders.iter().map(|builder| {
-        let service_id = builder.service_id()
-            .ok_or_else(|| {
-                error!("The service_id must be set before the service argument PEER_SERVICES can be set");
+    let peers = service_builders
+        .iter()
+        .map(|builder| {
+            let service_id = builder.service_id().ok_or_else(|| {
+                error!(
+                    "The service_id must be set before the service argument PEER_SERVICES can \
+                     be set"
+                );
                 CircuitTemplateError::new("Failed to parse template due to an internal error")
             })?;
-        Ok(format!("\"{}\"", service_id))
-    }).collect::<Result<Vec<String>, CircuitTemplateError>>()?;
+            Ok(format!("\"{}\"", service_id))
+        })
+        .collect::<Result<Vec<String>, CircuitTemplateError>>()?;
     let services = service_builders
         .into_iter()
         .enumerate()
@@ -176,10 +185,15 @@ fn all_services(
 mod test {
     use super::*;
 
-    /*
-     * Test that CreateServices::apply_rules correcly sets ups
-     * the services builders
-     */
+    /// Verify that a `SplinterServiceBuilder` is accurately constructed using the `CreateServices`
+    /// `apply_rule` method.
+    ///
+    /// The test follows the procedure below:
+    /// 1. Generate a `CreateServices` object and a set of template arguments using mock data.
+    /// 2. Use the `apply_rule` method of the `CreateServices` object created in the previous step,
+    ///    resulting in 2 `SplinterServiceBuilder` objects.
+    ///
+    /// The `SplinterServiceBuilder` objects are then verified to have all expected values.
     #[test]
     fn test_create_service_apply_rules() {
         let create_services = make_create_service();
@@ -187,7 +201,7 @@ mod test {
 
         let service_builders = create_services
             .apply_rule(&template_arguments)
-            .expect("Failled to apply rules");
+            .expect("Failed to apply rules");
 
         assert_eq!(service_builders.len(), 2);
 
@@ -237,14 +251,34 @@ mod test {
             ("admin-keys".to_string(), "[\"signer_key\"]".to_string())
         );
 
-        // test that building services succeeds:
+        // Verify each `SplinterServiceBuilder` is able to `build` successfully.
         assert!(service_builders[0].clone().build().is_ok());
         assert!(service_builders[1].clone().build().is_ok());
     }
 
-    /*
-     * Test that CreateServices::apply_rules accurately detects an invalid `first_service`.
-     */
+    /// Verify the `CreateServices` `apply_rule` method accurately detects an invalid
+    /// `first_service`. In order to test the breadth of possible invalidities, this test creates
+    /// multiple, different invalid `first_service` objects.
+    /// Before the `first_service` objects are tested, a set of template arguments are generated
+    /// using mock data, to be passed to the `apply_rule` method for each invalid case.
+    ///
+    /// The different invalidities are tested as follows:
+    ///
+    /// 1. Once a `CreateServices` object has been created, the `first_service` field is set to
+    ///    an empty string. Then verifies the `apply_rule` method returns an error.
+    ///
+    /// 2. Once a `CreateServices` object has been created, the `first_service` field is set to
+    ///    a 3-character string, 'a00', which is invalid as this field must be a 4-character base-62
+    ///    string. Then verifies the `apply_rule` method returns an error.
+    ///
+    /// 3. Once a `CreateServices` object has been created, the `first_service` field is set to
+    ///    a 5-character string, 'a0000', which is invalid for the same reason as the previous step.
+    ///    Then verifies the `apply_rule` method returns an error.
+    ///
+    /// 4. Once a `CreateServices` object has been created, the `first_service` field is set to a
+    ///    4-character string, with an invalid character, ':'. This character is invalid as the
+    ///   field must contain a base-62 string. Then verifies the `apply_rule` method returns an error.
+    ///
     #[test]
     fn test_create_service_apply_rules_invalid_first_service() {
         let template_arguments = make_rule_arguments();
@@ -273,7 +307,7 @@ mod test {
         };
         let admin_keys_arg = ServiceArgument {
             key: "admin-keys".to_string(),
-            value: Value::List(vec!["$(a:ADMIN_KEYS)".to_string()]),
+            value: Value::List(vec!["$(ADMIN_KEYS)".to_string()]),
         };
 
         CreateServices {
@@ -284,15 +318,15 @@ mod test {
     }
 
     fn make_rule_arguments() -> Vec<RuleArgument> {
-        let admin_keys_templae_arg = RuleArgument {
+        let admin_keys_template_arg = RuleArgument {
             name: "admin_keys".to_string(),
             required: false,
-            default_value: Some("$(a:SIGNER_PUB_KEY)".to_string()),
+            default_value: Some("$(SIGNER_PUB_KEY)".to_string()),
             description: None,
             user_value: None,
         };
 
-        let nodes_templae_arg = RuleArgument {
+        let nodes_template_arg = RuleArgument {
             name: "nodes".to_string(),
             required: true,
             default_value: None,
@@ -308,6 +342,6 @@ mod test {
             user_value: Some("signer_key".to_string()),
         };
 
-        vec![admin_keys_templae_arg, nodes_templae_arg, signer_pub_key]
+        vec![admin_keys_template_arg, nodes_template_arg, signer_pub_key]
     }
 }

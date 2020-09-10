@@ -12,18 +12,24 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//! Data structures to hold necessary information for setting the values in the builders generated
+//! from a circuit template. Also provides the general functionality to apply the circuit template
+//! `rules`.
+
 mod create_services;
 mod set_management_type;
 mod set_metadata;
 
 use std::convert::TryFrom;
 
-use super::{yaml_parser::v1, Builders, CircuitTemplateError};
+use super::{yaml_parser::v1, CircuitTemplateError, CreateCircuitBuilder};
 
 use create_services::CreateServices;
 use set_management_type::CircuitManagement;
 use set_metadata::SetMetadata;
 
+/// Available `rules` used to create the value for entries of a builder, based on the circuit
+/// template arguments that have been set.
 pub struct Rules {
     set_management_type: Option<CircuitManagement>,
     create_services: Option<CreateServices>,
@@ -31,30 +37,41 @@ pub struct Rules {
 }
 
 impl Rules {
+    /// Applies all available `Rules` for the circuit template. This updates all builders,
+    /// including the `SplinterServiceBuilder` objects and `CreateCircuitBuilder`.
     pub fn apply_rules(
         &self,
-        builders: &mut Builders,
+        mut circuit_builder: CreateCircuitBuilder,
         template_arguments: &[RuleArgument],
-    ) -> Result<(), CircuitTemplateError> {
-        let mut service_builders = builders.service_builders();
-
-        let mut circuit_builder = builders.create_circuit_builder();
-
+    ) -> Result<CreateCircuitBuilder, CircuitTemplateError> {
         if let Some(circuit_management) = &self.set_management_type {
-            circuit_builder = circuit_management.apply_rule(circuit_builder)?;
+            circuit_builder =
+                circuit_builder.with_circuit_management_type(&circuit_management.apply_rule()?);
         }
 
         if let Some(create_services) = &self.create_services {
-            service_builders.extend(create_services.apply_rule(template_arguments)?);
+            let service_builders = create_services.apply_rule(template_arguments)?;
+            let mut services = vec![];
+            for service_builder in service_builders {
+                match service_builder.build() {
+                    Ok(service) => services.push(service),
+                    Err(err) => {
+                        return Err(CircuitTemplateError::new_with_source(
+                            "Failed to build SplinterService: {}",
+                            Box::new(err),
+                        ));
+                    }
+                }
+            }
+            circuit_builder = circuit_builder.with_roster(&services);
         }
 
         if let Some(set_metadata) = &self.set_metadata {
-            circuit_builder = set_metadata.apply_rule(circuit_builder, template_arguments)?;
+            circuit_builder = circuit_builder
+                .with_application_metadata(&set_metadata.apply_rule(template_arguments)?);
         }
 
-        builders.set_create_circuit_builder(circuit_builder);
-        builders.set_service_builders(service_builders);
-        Ok(())
+        Ok(circuit_builder)
     }
 }
 
@@ -74,12 +91,15 @@ impl From<v1::Rules> for Rules {
     }
 }
 
+/// Data structure to hold an argument used by a rule.
 #[derive(Clone)]
 pub struct RuleArgument {
     name: String,
+    /// Represents whether the argument itself is required.
     required: bool,
     default_value: Option<String>,
     description: Option<String>,
+    /// Value specified by the user.
     user_value: Option<String>,
 }
 
@@ -113,7 +133,7 @@ impl TryFrom<v1::RuleArgument> for RuleArgument {
     type Error = CircuitTemplateError;
     fn try_from(arguments: v1::RuleArgument) -> Result<Self, Self::Error> {
         Ok(RuleArgument {
-            name: strip_arg_marker(arguments.name())?,
+            name: arguments.name().to_lowercase(),
             required: arguments.required(),
             default_value: arguments.default_value().map(String::from),
             description: arguments.description().map(String::from),
@@ -122,26 +142,17 @@ impl TryFrom<v1::RuleArgument> for RuleArgument {
     }
 }
 
-fn is_arg(key: &str) -> bool {
-    key.starts_with("$(a:")
+fn is_arg_value(key: &str) -> bool {
+    key.starts_with("$(")
 }
 
-fn strip_arg_marker(key: &str) -> Result<String, CircuitTemplateError> {
-    if key.starts_with("$(a:") && key.ends_with(')') {
+fn strip_arg_marker(key: &str) -> String {
+    if key.starts_with("$(") && key.ends_with(')') {
         let mut key = key.to_string();
         key.pop();
-        Ok(key
-            .get(4..)
-            .ok_or_else(|| {
-                CircuitTemplateError::new(&format!("{} is not a valid argument name", key))
-            })?
-            .to_string()
-            .to_lowercase())
+        key.trim_start_matches("$(").to_string().to_lowercase()
     } else {
-        Err(CircuitTemplateError::new(&format!(
-            "{} is not a valid argument name",
-            key
-        )))
+        key.to_string().to_lowercase()
     }
 }
 
@@ -164,24 +175,24 @@ fn get_argument_value(
     key: &str,
     template_arguments: &[RuleArgument],
 ) -> Result<String, CircuitTemplateError> {
-    let key = strip_arg_marker(key)?;
+    let key = strip_arg_marker(key);
     let value = match template_arguments.iter().find(|arg| arg.name == key) {
         Some(arg) => match arg.user_value() {
             Some(val) => val.to_string(),
             None => {
                 if arg.required {
                     return Err(CircuitTemplateError::new(&format!(
-                        "Argument {} is required but was not provided",
+                        "Argument \"{}\" is required but was not provided",
                         key
                     )));
                 } else {
                     let default_value = arg.default_value.to_owned().ok_or_else(|| {
                         CircuitTemplateError::new(&format!(
-                            "Argument {} was not provided and no default value is set",
+                            "Argument \"{}\" was not provided and no default value is set",
                             key
                         ))
                     })?;
-                    if is_arg(&default_value) {
+                    if is_arg_value(&default_value) {
                         get_argument_value(&default_value, template_arguments)?
                     } else {
                         default_value
@@ -191,7 +202,7 @@ fn get_argument_value(
         },
         None => {
             return Err(CircuitTemplateError::new(&format!(
-                "Invalid template. Argument {} was expected but not provided",
+                "Invalid template. Argument \"{}\" was expected but not provided",
                 key
             )));
         }

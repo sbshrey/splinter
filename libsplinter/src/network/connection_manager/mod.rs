@@ -13,9 +13,9 @@
 // limitations under the License.
 
 pub mod authorizers;
+mod builder;
 mod error;
 mod notification;
-mod pacemaker;
 
 use std::cmp::min;
 use std::collections::HashMap;
@@ -25,18 +25,15 @@ use std::time::Instant;
 
 use uuid::Uuid;
 
-pub use error::ConnectionManagerError;
-pub use notification::{ConnectionManagerNotification, NotificationIter};
-use pacemaker::Pacemaker;
-use protobuf::Message;
+pub use builder::ConnectionManagerBuilder;
+pub use error::{AuthorizerError, ConnectionManagerError};
+pub use notification::ConnectionManagerNotification;
 
-use crate::matrix::{MatrixLifeCycle, MatrixSender};
-use crate::protos::network::{NetworkHeartbeat, NetworkMessage, NetworkMessageType};
-use crate::transport::{Connection, Transport};
+use crate::threading::pacemaker;
+use crate::transport::matrix::{ConnectionMatrixLifeCycle, ConnectionMatrixSender};
+use crate::transport::{ConnectError, Connection, Transport};
 
-const DEFAULT_HEARTBEAT_INTERVAL: u64 = 10;
 const INITIAL_RETRY_FREQUENCY: u64 = 10;
-const DEFAULT_MAXIMUM_RETRY_FREQUENCY: u64 = 300;
 
 pub type AuthorizerCallback =
     Box<dyn Fn(AuthorizationResult) -> Result<(), Box<dyn std::error::Error>> + Send>;
@@ -62,21 +59,11 @@ pub enum AuthorizationResult {
     },
 }
 
-#[derive(Debug)]
-pub struct AuthorizerError(pub String);
-
-impl std::error::Error for AuthorizerError {}
-
-impl std::fmt::Display for AuthorizerError {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        f.write_str(&self.0)
-    }
-}
-
 pub type SubscriberId = usize;
 type Subscriber =
     Box<dyn Fn(ConnectionManagerNotification) -> Result<(), Box<dyn std::error::Error>> + Send>;
 
+/// Responsible for broadcasting connection manager notifications.
 struct SubscriberMap {
     subscribers: HashMap<SubscriberId, Subscriber>,
     next_id: SubscriberId,
@@ -117,6 +104,7 @@ impl SubscriberMap {
     }
 }
 
+/// Messages handled by the connection manager.
 enum CmMessage {
     Shutdown,
     Request(CmRequest),
@@ -124,11 +112,12 @@ enum CmMessage {
     SendHeartbeats,
 }
 
+/// CmMessages sent by a Connector.
 enum CmRequest {
     RequestOutboundConnection {
         endpoint: String,
         connection_id: String,
-        sender: Sender<Result<String, ConnectionManagerError>>,
+        sender: Sender<Result<(), ConnectionManagerError>>,
     },
     RemoveConnection {
         endpoint: String,
@@ -151,150 +140,71 @@ enum CmRequest {
     },
 }
 
+/// Messages sent to ConnectionState to report on the status of a connection
+/// authorization attempt.
 enum AuthResult {
     Outbound {
         endpoint: String,
-        sender: Sender<Result<String, ConnectionManagerError>>,
         auth_result: AuthorizationResult,
     },
     Inbound {
         endpoint: String,
-        sender: Sender<Result<(), ConnectionManagerError>>,
         auth_result: AuthorizationResult,
     },
 }
 
-pub struct ConnectionManager<T: 'static, U: 'static>
-where
-    T: MatrixLifeCycle,
-    U: MatrixSender,
-{
-    pacemaker: Pacemaker,
-    connection_state: Option<ConnectionState<T, U>>,
-    authorizer: Option<Box<dyn Authorizer + Send>>,
-    join_handle: Option<thread::JoinHandle<()>>,
-    sender: Option<Sender<CmMessage>>,
-    shutdown_handle: Option<ShutdownHandle>,
+/// Creates, manages, and maintains connections. A connection manager
+/// guarantees that the connections it creates will be maintained via
+/// reconnections. This is not true for external connections.
+pub struct ConnectionManager {
+    pacemaker: pacemaker::Pacemaker,
+    join_handle: thread::JoinHandle<()>,
+    sender: Sender<CmMessage>,
 }
 
-impl<T, U> ConnectionManager<T, U>
-where
-    T: MatrixLifeCycle,
-    U: MatrixSender,
-{
-    pub fn new(
-        authorizer: Box<dyn Authorizer + Send>,
-        life_cycle: T,
-        matrix_sender: U,
-        transport: Box<dyn Transport + Send>,
-        heartbeat_interval: Option<u64>,
-        maximum_retry_frequency: Option<u64>,
-    ) -> Self {
-        let heartbeat = heartbeat_interval.unwrap_or(DEFAULT_HEARTBEAT_INTERVAL);
-        let retry_frequency = maximum_retry_frequency.unwrap_or(DEFAULT_MAXIMUM_RETRY_FREQUENCY);
-        let connection_state = Some(ConnectionState::new(
-            life_cycle,
-            matrix_sender,
-            transport,
-            retry_frequency,
-        ));
-        let pacemaker = Pacemaker::new(heartbeat);
+impl ConnectionManager {
+    /// Construct a new `ConnectionManagerBuilder` for creating a new `ConnectionManager` instance.
+    pub fn builder<T, U>() -> ConnectionManagerBuilder<T, U>
+    where
+        T: ConnectionMatrixLifeCycle + 'static,
+        U: ConnectionMatrixSender + 'static,
+    {
+        ConnectionManagerBuilder::new()
+    }
 
-        Self {
-            authorizer: Some(authorizer),
-            pacemaker,
-            connection_state,
-            join_handle: None,
-            sender: None,
-            shutdown_handle: None,
+    /// Create a new connector for performing client operations on this instance's state.
+    pub fn connector(&self) -> Connector {
+        Connector {
+            sender: self.sender.clone(),
         }
     }
 
-    pub fn start(&mut self) -> Result<Connector, ConnectionManagerError> {
-        let (sender, recv) = channel();
-        let mut state = self.connection_state.take().ok_or_else(|| {
-            ConnectionManagerError::StartUpError("Service has already started".into())
-        })?;
-
-        let authorizer = self.authorizer.take().ok_or_else(|| {
-            ConnectionManagerError::StartUpError("Service has already started".into())
-        })?;
-
-        let resender = sender.clone();
-        let join_handle = thread::Builder::new()
-            .name("Connection Manager".into())
-            .spawn(move || {
-                let mut subscribers = SubscriberMap::new();
-                loop {
-                    match recv.recv() {
-                        Ok(CmMessage::Shutdown) => break,
-                        Ok(CmMessage::Request(req)) => {
-                            handle_request(
-                                req,
-                                &mut state,
-                                &mut subscribers,
-                                &*authorizer,
-                                resender.clone(),
-                            );
-                        }
-                        Ok(CmMessage::AuthResult(auth_result)) => {
-                            handle_auth_result(auth_result, &mut state, &mut subscribers);
-                        }
-                        Ok(CmMessage::SendHeartbeats) => {
-                            send_heartbeats(&mut state, &mut subscribers)
-                        }
-                        Err(_) => {
-                            warn!("All senders have disconnected");
-                            break;
-                        }
-                    }
-                }
-            })?;
-
-        self.pacemaker
-            .start(sender.clone(), || CmMessage::SendHeartbeats)?;
-        self.join_handle = Some(join_handle);
-        self.shutdown_handle = Some(ShutdownHandle {
-            sender: sender.clone(),
-            pacemaker_shutdown_handle: self.pacemaker.shutdown_handle().unwrap(),
-        });
-        self.sender = Some(sender.clone());
-
-        Ok(Connector { sender })
+    pub fn shutdown_signaler(&self) -> ShutdownSignaler {
+        ShutdownSignaler {
+            sender: self.sender.clone(),
+            pacemaker_shutdown_signaler: self.pacemaker.shutdown_signaler(),
+        }
     }
 
-    pub fn shutdown_handle(&self) -> Option<ShutdownHandle> {
-        self.shutdown_handle.clone()
-    }
-
+    /// Blocks until a connection manager has shutdown. This is meant to allow
+    /// a separate process to shutdown the connection manager via the shutdown
+    /// handle while another process waits for that process to complete.
     pub fn await_shutdown(self) {
+        debug!("Shutting down connection manager pacemaker...");
         self.pacemaker.await_shutdown();
+        debug!("Shutting down connection manager pacemaker (complete)");
 
-        let join_handle = if let Some(jh) = self.join_handle {
-            jh
-        } else {
-            return;
-        };
-
-        if let Err(err) = join_handle.join() {
+        if let Err(err) = self.join_handle.join() {
             error!(
                 "Connection manager thread did not shutdown correctly: {:?}",
                 err
             );
         }
     }
-
-    pub fn shutdown_and_wait(self) {
-        if let Some(sh) = self.shutdown_handle.clone() {
-            sh.shutdown();
-        } else {
-            return;
-        }
-
-        self.await_shutdown();
-    }
 }
 
+/// Connector is a client or handle to the connection manager and is used to
+/// send request to the connection manager.
 #[derive(Clone)]
 pub struct Connector {
     sender: Sender<CmMessage>,
@@ -304,17 +214,18 @@ impl Connector {
     /// Request a connection to the given endpoint.
     ///
     /// This operation is idempotent: if a connection to that endpoint already exists, a new
-    /// connection is not created. On successful connection, the authorized identity of the
-    /// connection is returned.
+    /// connection is not created. On successful connection Ok is returned. The connection is not
+    /// ready to use, it must complete authorization. When the connection is ready a
+    /// `ConnectionManagerNotification::Connected`will be sent to subscribers.
     ///
     /// # Errors
     ///
-    /// An error is returned if the connection cannot be created
+    /// An error is returned if the connection cannot be created.
     pub fn request_connection(
         &self,
         endpoint: &str,
         connection_id: &str,
-    ) -> Result<String, ConnectionManagerError> {
+    ) -> Result<(), ConnectionManagerError> {
         let (sender, recv) = channel();
         self.sender
             .send(CmMessage::Request(CmRequest::RequestOutboundConnection {
@@ -335,15 +246,15 @@ impl Connector {
         })?
     }
 
-    /// Removes a connection
+    /// Removes a connection from a connection manager.
     ///
-    ///  # Returns
+    /// # Returns
     ///
-    ///  The endpoint, if the connection exists; None, otherwise.
+    /// The endpoint, if the connection exists; None, otherwise.
     ///
-    ///  # Errors
+    /// # Errors
     ///
-    ///  Returns a ConnectionManagerError if the query cannot be performed.
+    /// Returns a ConnectionManagerError if the query cannot be performed.
     pub fn remove_connection(
         &self,
         endpoint: &str,
@@ -365,19 +276,6 @@ impl Connector {
                 "The connection manager is no longer running".into(),
             )
         })?
-    }
-
-    /// Create an iterator over ConnectionManagerNotification events.
-    ///
-    /// # Errors
-    ///
-    /// Return a ConnectionManagerError if the notification iterator cannot be created.
-    pub fn subscription_iter(&self) -> Result<NotificationIter, ConnectionManagerError> {
-        let (send, recv) = channel();
-
-        self.subscribe(send)?;
-
-        Ok(NotificationIter { recv })
     }
 
     /// Subscribe to notifications for connection events.
@@ -421,6 +319,12 @@ impl Connector {
         })?
     }
 
+    /// Unsubscribe to connection manager notifications.
+    ///
+    /// # Errors
+    ///
+    /// Returns a ConnectionManagerError if the connection manager
+    /// has stopped running.
     pub fn unsubscribe(&self, subscriber_id: SubscriberId) -> Result<(), ConnectionManagerError> {
         let (sender, recv) = channel();
         self.sender
@@ -467,6 +371,12 @@ impl Connector {
         })?
     }
 
+    /// Add a new inbound connection.
+    ///
+    /// # Error
+    ///
+    /// Returns a ConnectionManagerError if the connection manager is
+    /// no longer running.
     pub fn add_inbound_connection(
         &self,
         connection: Box<dyn Connection>,
@@ -491,17 +401,17 @@ impl Connector {
     }
 }
 
-/// Signals shutdown to the ConnectionManager
+/// Sends a shutdown signal to the connection manager.
 #[derive(Clone)]
-pub struct ShutdownHandle {
+pub struct ShutdownSignaler {
     sender: Sender<CmMessage>,
-    pacemaker_shutdown_handle: pacemaker::ShutdownHandle,
+    pacemaker_shutdown_signaler: pacemaker::ShutdownSignaler,
 }
 
-impl ShutdownHandle {
-    /// Signal the ConnectionManager to shutdown.
+impl ShutdownSignaler {
+    /// Signal the connection manager to shutdown.
     pub fn shutdown(self) {
-        self.pacemaker_shutdown_handle.shutdown();
+        self.pacemaker_shutdown_signaler.shutdown();
 
         if self.sender.send(CmMessage::Shutdown).is_err() {
             warn!("Connection manager is no longer running");
@@ -509,6 +419,7 @@ impl ShutdownHandle {
     }
 }
 
+/// Metadata describing a connection managed by the connection manager.
 #[derive(Clone, Debug)]
 struct ConnectionMetadata {
     connection_id: String,
@@ -535,6 +446,8 @@ impl ConnectionMetadata {
     }
 }
 
+/// Enum describing metadata that is specific to the two different connection
+/// types, outbound and inbound.
 #[derive(Clone, Debug)]
 enum ConnectionMetadataExt {
     Outbound {
@@ -548,10 +461,13 @@ enum ConnectionMetadataExt {
     },
 }
 
-struct ConnectionState<T, U>
+/// Struct describing the connection manager's internal state and handling
+/// requests sent to the connection manager by its Connectors. Connection state
+/// is responsible for adding, removing, and authorizing connections.
+struct ConnectionManagerState<T, U>
 where
-    T: MatrixLifeCycle,
-    U: MatrixSender,
+    T: ConnectionMatrixLifeCycle,
+    U: ConnectionMatrixSender,
 {
     connections: HashMap<String, ConnectionMetadata>,
     life_cycle: T,
@@ -560,10 +476,10 @@ where
     maximum_retry_frequency: u64,
 }
 
-impl<T, U> ConnectionState<T, U>
+impl<T, U> ConnectionManagerState<T, U>
 where
-    T: MatrixLifeCycle,
-    U: MatrixSender,
+    T: ConnectionMatrixLifeCycle,
+    U: ConnectionMatrixSender,
 {
     fn new(
         life_cycle: T,
@@ -580,6 +496,7 @@ where
         }
     }
 
+    /// Adds a new connection as an inbound connection.
     fn add_inbound_connection(
         &mut self,
         connection: Box<dyn Connection>,
@@ -590,9 +507,8 @@ where
         let endpoint = connection.remote_endpoint();
         let id = Uuid::new_v4().to_string();
 
-        // add the connection to the authorization pool
+        // add the connection to the authorization pool.
         let auth_endpoint = endpoint;
-        let auth_sender = reply_sender.clone();
         if let Err(err) = authorizer.authorize_connection(
             id,
             connection,
@@ -600,42 +516,69 @@ where
                 internal_sender
                     .send(CmMessage::AuthResult(AuthResult::Inbound {
                         endpoint: auth_endpoint.clone(),
-                        sender: auth_sender.clone(),
                         auth_result,
                     }))
                     .map_err(Box::from)
             }),
         ) {
             if reply_sender
-                .send(Err(ConnectionManagerError::ConnectionCreationError(
-                    err.to_string(),
+                .send(Err(ConnectionManagerError::connection_creation_error(
+                    &err.to_string(),
                 )))
                 .is_err()
             {
                 warn!("connector dropped before receiving result of add connection");
             }
+        } else if reply_sender.send(Ok(())).is_err() {
+            warn!("connector dropped before receiving result of add connection");
         }
     }
 
-    fn add_connection(
+    /// Adds a new outbound connection.
+    fn add_outbound_connection(
         &mut self,
         endpoint: &str,
         connection_id: String,
-        reply_sender: Sender<Result<String, ConnectionManagerError>>,
+        reply_sender: Sender<Result<(), ConnectionManagerError>>,
         internal_sender: Sender<CmMessage>,
         authorizer: &dyn Authorizer,
+        subscribers: &mut SubscriberMap,
     ) {
         if let Some(connection) = self.connections.get(endpoint) {
             let identity = connection.identity().to_string();
-            if reply_sender.send(Ok(identity)).is_err() {
+            // if this connection not reconnecting or disconnected, send Connected
+            // notification.
+            match connection.extended_metadata {
+                ConnectionMetadataExt::Outbound {
+                    ref reconnecting, ..
+                } => {
+                    if !reconnecting {
+                        subscribers.broadcast(ConnectionManagerNotification::Connected {
+                            endpoint: endpoint.to_string(),
+                            connection_id,
+                            identity,
+                        });
+                    }
+                }
+                ConnectionMetadataExt::Inbound { ref disconnected } => {
+                    if !disconnected {
+                        subscribers.broadcast(ConnectionManagerNotification::Connected {
+                            endpoint: endpoint.to_string(),
+                            connection_id,
+                            identity,
+                        });
+                    }
+                }
+            }
+
+            if reply_sender.send(Ok(())).is_err() {
                 warn!("connector dropped before receiving result of add connection");
             }
         } else {
             match self.transport.connect(endpoint) {
                 Ok(connection) => {
-                    // add the connection to the authorization pool
+                    // add the connection to the authorization pool.
                     let auth_endpoint = endpoint.to_string();
-                    let auth_sender = reply_sender.clone();
                     if let Err(err) = authorizer.authorize_connection(
                         connection_id,
                         connection,
@@ -643,29 +586,34 @@ where
                             internal_sender
                                 .send(CmMessage::AuthResult(AuthResult::Outbound {
                                     endpoint: auth_endpoint.clone(),
-                                    sender: auth_sender.clone(),
                                     auth_result,
                                 }))
                                 .map_err(Box::from)
                         }),
                     ) {
                         if reply_sender
-                            .send(Err(ConnectionManagerError::ConnectionCreationError(
-                                err.to_string(),
+                            .send(Err(ConnectionManagerError::connection_creation_error(
+                                &err.to_string(),
                             )))
                             .is_err()
                         {
                             warn!("connector dropped before receiving result of add connection");
                         }
+                    } else if reply_sender.send(Ok(())).is_err() {
+                        warn!("connector dropped before receiving result of add connection");
                     }
                 }
                 Err(err) => {
-                    if reply_sender
-                        .send(Err(ConnectionManagerError::ConnectionCreationError(
-                            err.to_string(),
-                        )))
-                        .is_err()
-                    {
+                    let connection_error = match err {
+                        ConnectError::IoError(io_err) => {
+                            ConnectionManagerError::connection_creation_error_with_io(
+                                &format!("Unable to connect to {}", endpoint),
+                                io_err.kind(),
+                            )
+                        }
+                        _ => ConnectionManagerError::connection_creation_error(&err.to_string()),
+                    };
+                    if reply_sender.send(Err(connection_error)).is_err() {
                         warn!("connector dropped before receiving result of add connection");
                     }
                 }
@@ -673,29 +621,51 @@ where
         }
     }
 
-    fn outbound_authorization_complete(
+    /// Adds outbound connection to matrix life cycle after the connection has
+    /// been authorized. These connections cannot be reconnected when dropped
+    /// or lost.
+    ///
+    /// # Returns
+    ///
+    /// A string representing the Connection ID.
+    ///
+    /// # Errors
+    ///
+    /// Returns a connection manager error if the connection is unauthorized or
+    /// if the life cycle fails to add the connection.
+    fn on_outbound_authorization_complete(
         &mut self,
         endpoint: String,
         auth_result: AuthorizationResult,
-    ) -> Result<String, ConnectionManagerError> {
+        subscribers: &mut SubscriberMap,
+    ) {
         match auth_result {
             AuthorizationResult::Authorized {
                 connection_id,
                 connection,
                 identity,
             } => {
-                self.life_cycle
+                if let Err(err) = self
+                    .life_cycle
                     .add(connection, connection_id.clone())
                     .map_err(|err| {
-                        ConnectionManagerError::ConnectionCreationError(format!("{:?}", err))
-                    })?;
+                        ConnectionManagerError::connection_creation_error(&err.to_string())
+                    })
+                {
+                    subscribers.broadcast(ConnectionManagerNotification::FatalConnectionError {
+                        endpoint,
+                        error: err,
+                    });
+
+                    return;
+                }
 
                 self.connections.insert(
                     endpoint.clone(),
                     ConnectionMetadata {
-                        connection_id,
+                        connection_id: connection_id.to_string(),
                         identity: identity.clone(),
-                        endpoint,
+                        endpoint: endpoint.clone(),
                         extended_metadata: ConnectionMetadataExt::Outbound {
                             reconnecting: false,
                             retry_frequency: INITIAL_RETRY_FREQUENCY,
@@ -705,31 +675,57 @@ where
                     },
                 );
 
-                Ok(identity)
+                subscribers.broadcast(ConnectionManagerNotification::Connected {
+                    endpoint,
+                    connection_id,
+                    identity,
+                });
             }
             AuthorizationResult::Unauthorized { connection_id, .. } => {
-                Err(ConnectionManagerError::Unauthorized(connection_id))
+                if self.connections.remove(&endpoint).is_some() {
+                    warn!("Reconnecting connection failed authorization");
+                }
+                // If the connection is unauthorized, notify subscriber this is a bad connection
+                // and will not be added.
+                subscribers.broadcast(ConnectionManagerNotification::FatalConnectionError {
+                    endpoint,
+                    error: ConnectionManagerError::Unauthorized(connection_id),
+                });
             }
         }
     }
 
-    fn inbound_authorization_complete(
+    /// Adds inbound connection to matrix life cycle after it has been authorized.
+    ///
+    /// # Errors
+    ///
+    /// Returns a connection manager error if the connection is unauthorized or
+    /// if the life cycle fails to add the connection.
+    fn on_inbound_authorization_complete(
         &mut self,
         endpoint: String,
         auth_result: AuthorizationResult,
         subscribers: &mut SubscriberMap,
-    ) -> Result<(), ConnectionManagerError> {
+    ) {
         match auth_result {
             AuthorizationResult::Authorized {
                 connection_id,
                 connection,
                 identity,
             } => {
-                self.life_cycle
+                if let Err(err) = self
+                    .life_cycle
                     .add(connection, connection_id.clone())
                     .map_err(|err| {
-                        ConnectionManagerError::ConnectionCreationError(format!("{:?}", err))
-                    })?;
+                        ConnectionManagerError::connection_creation_error(&err.to_string())
+                    })
+                {
+                    subscribers.broadcast(ConnectionManagerNotification::FatalConnectionError {
+                        endpoint,
+                        error: err,
+                    });
+                    return;
+                }
 
                 self.connections.insert(
                     endpoint.clone(),
@@ -748,15 +744,28 @@ where
                     connection_id,
                     identity,
                 });
-
-                Ok(())
             }
             AuthorizationResult::Unauthorized { connection_id, .. } => {
-                Err(ConnectionManagerError::Unauthorized(connection_id))
+                // If the connection is unauthorized, notify subscriber this is a bad connection
+                // and will not be added.
+                subscribers.broadcast(ConnectionManagerNotification::FatalConnectionError {
+                    endpoint,
+                    error: ConnectionManagerError::Unauthorized(connection_id),
+                });
             }
         }
     }
 
+    /// Removes connection from state.
+    ///
+    /// # Returns
+    ///
+    /// Returns metadata for the connection if available.
+    ///
+    /// # Errors
+    ///
+    /// ConnectionManagerError if the connection cannot be removed from
+    /// the matrix life cycle.
     fn remove_connection(
         &mut self,
         endpoint: &str,
@@ -781,10 +790,18 @@ where
         Ok(Some(meta))
     }
 
+    /// Handles reconnection operation.
+    ///
+    /// # Errors
+    ///
+    /// Returns ConnectionManagerError if reconnection operation fails due to
+    /// an error caused by the matrix life cycle.
     fn reconnect(
         &mut self,
         endpoint: &str,
         subscribers: &mut SubscriberMap,
+        authorizer: &dyn Authorizer,
+        internal_sender: Sender<CmMessage>,
     ) -> Result<(), ConnectionManagerError> {
         let mut meta = if let Some(meta) = self.connections.get_mut(endpoint) {
             meta.clone()
@@ -810,36 +827,21 @@ where
                     ))
                 })?;
 
-            // add new connection to mesh
-            self.life_cycle
-                .add(connection, meta.connection_id().to_string())
-                .map_err(|err| {
-                    ConnectionManagerError::ConnectionReconnectError(format!("{:?}", err))
-                })?;
-
-            // replace mesh id and reset reconnecting fields
-            match meta.extended_metadata {
-                ConnectionMetadataExt::Outbound {
-                    ref mut reconnecting,
-                    ref mut retry_frequency,
-                    ref mut last_connection_attempt,
-                    ref mut reconnection_attempts,
-                } => {
-                    *reconnecting = false;
-                    *retry_frequency = INITIAL_RETRY_FREQUENCY;
-                    *last_connection_attempt = Instant::now();
-                    *reconnection_attempts = 0;
-                }
-                // We checked earlier that this was an outbound connection
-                _ => unreachable!(),
+            let auth_endpoint = endpoint.to_string();
+            if let Err(err) = authorizer.authorize_connection(
+                meta.connection_id,
+                connection,
+                Box::new(move |auth_result| {
+                    internal_sender
+                        .send(CmMessage::AuthResult(AuthResult::Outbound {
+                            endpoint: auth_endpoint.clone(),
+                            auth_result,
+                        }))
+                        .map_err(Box::from)
+                }),
+            ) {
+                error!("Error authorizing {}: {}", endpoint, err);
             }
-
-            self.connections.insert(endpoint.to_string(), meta);
-
-            // Notify subscribers of success
-            subscribers.broadcast(ConnectionManagerNotification::Connected {
-                endpoint: endpoint.to_string(),
-            });
         } else {
             let reconnection_attempts = match meta.extended_metadata {
                 ConnectionMetadataExt::Outbound {
@@ -858,13 +860,14 @@ where
                 // We checked earlier that this was an outbound connection
                 _ => unreachable!(),
             };
-
+            let identity = meta.identity.to_string();
             self.connections.insert(endpoint.to_string(), meta);
 
             // Notify subscribers of reconnection failure
-            subscribers.broadcast(ConnectionManagerNotification::ReconnectionFailed {
+            subscribers.broadcast(ConnectionManagerNotification::NonFatalConnectionError {
                 endpoint: endpoint.to_string(),
                 attempts: reconnection_attempts,
+                identity,
             });
         }
         Ok(())
@@ -883,185 +886,6 @@ where
     }
 }
 
-fn handle_request<T: MatrixLifeCycle, U: MatrixSender>(
-    req: CmRequest,
-    state: &mut ConnectionState<T, U>,
-    subscribers: &mut SubscriberMap,
-    authorizer: &dyn Authorizer,
-    internal_sender: Sender<CmMessage>,
-) {
-    match req {
-        CmRequest::RequestOutboundConnection {
-            endpoint,
-            sender,
-            connection_id,
-        } => state.add_connection(
-            &endpoint,
-            connection_id,
-            sender,
-            internal_sender,
-            authorizer,
-        ),
-        CmRequest::RemoveConnection { endpoint, sender } => {
-            let response = state
-                .remove_connection(&endpoint)
-                .map(|meta_opt| meta_opt.map(|meta| meta.endpoint().to_owned()));
-
-            if sender.send(response).is_err() {
-                warn!("connector dropped before receiving result of remove connection");
-            }
-        }
-        CmRequest::ListConnections { sender } => {
-            if sender
-                .send(Ok(state
-                    .connection_metadata()
-                    .iter()
-                    .map(|(key, _)| key.to_string())
-                    .collect()))
-                .is_err()
-            {
-                warn!("connector dropped before receiving result of list connections");
-            }
-        }
-        CmRequest::AddInboundConnection { sender, connection } => {
-            state.add_inbound_connection(connection, sender, internal_sender, authorizer)
-        }
-        CmRequest::Subscribe { sender, callback } => {
-            let subscriber_id = subscribers.add_subscriber(callback);
-            if sender.send(Ok(subscriber_id)).is_err() {
-                warn!("connector dropped before receiving result of remove connection");
-            }
-        }
-        CmRequest::Unsubscribe {
-            sender,
-            subscriber_id,
-        } => {
-            subscribers.remove_subscriber(subscriber_id);
-            if sender.send(Ok(())).is_err() {
-                warn!("connector dropped before receiving result of remove connection");
-            }
-        }
-    };
-}
-
-fn handle_auth_result<T: MatrixLifeCycle, U: MatrixSender>(
-    auth_result: AuthResult,
-    state: &mut ConnectionState<T, U>,
-    subscribers: &mut SubscriberMap,
-) {
-    match auth_result {
-        AuthResult::Outbound {
-            endpoint,
-            sender,
-            auth_result,
-        } => {
-            let res = state.outbound_authorization_complete(endpoint, auth_result);
-            if sender.send(res).is_err() {
-                warn!("connector dropped before receiving result of connection authorization");
-            }
-        }
-        AuthResult::Inbound {
-            endpoint,
-            sender,
-            auth_result,
-        } => {
-            let res = state.inbound_authorization_complete(endpoint, auth_result, subscribers);
-            if sender.send(res).is_err() {
-                warn!("connector dropped before receiving result of connection authorization");
-            }
-        }
-    }
-}
-
-fn send_heartbeats<T: MatrixLifeCycle, U: MatrixSender>(
-    state: &mut ConnectionState<T, U>,
-    subscribers: &mut SubscriberMap,
-) {
-    let heartbeat_message = match create_heartbeat() {
-        Ok(h) => h,
-        Err(err) => {
-            error!("Failed to create heartbeat message: {:?}", err);
-            return;
-        }
-    };
-
-    let matrix_sender = state.matrix_sender();
-    let mut reconnections = vec![];
-    for (endpoint, metadata) in state.connection_metadata_mut().iter_mut() {
-        match metadata.extended_metadata {
-            ConnectionMetadataExt::Outbound {
-                reconnecting,
-                retry_frequency,
-                last_connection_attempt,
-                ..
-            } => {
-                // if connection is already attempting reconnection, call reconnect
-                if reconnecting {
-                    if last_connection_attempt.elapsed().as_secs() > retry_frequency {
-                        reconnections.push(endpoint.to_string());
-                    }
-                } else {
-                    info!("Sending heartbeat to {}", endpoint);
-                    if let Err(err) = matrix_sender
-                        .send(metadata.connection_id.clone(), heartbeat_message.clone())
-                    {
-                        error!(
-                            "failed to send heartbeat: {:?} attempting reconnection",
-                            err
-                        );
-
-                        subscribers.broadcast(ConnectionManagerNotification::Disconnected {
-                            endpoint: endpoint.clone(),
-                        });
-                        reconnections.push(endpoint.to_string());
-                    }
-                }
-            }
-            ConnectionMetadataExt::Inbound {
-                ref mut disconnected,
-            } => {
-                info!("Sending heartbeat to {}", endpoint);
-                if let Err(err) =
-                    matrix_sender.send(metadata.connection_id.clone(), heartbeat_message.clone())
-                {
-                    error!(
-                        "failed to send heartbeat: {:?} attempting reconnection",
-                        err
-                    );
-
-                    if !*disconnected {
-                        *disconnected = true;
-                        subscribers.broadcast(ConnectionManagerNotification::Disconnected {
-                            endpoint: endpoint.clone(),
-                        });
-                    }
-                } else {
-                    *disconnected = false;
-                }
-            }
-        }
-    }
-
-    for endpoint in reconnections {
-        if let Err(err) = state.reconnect(&endpoint, subscribers) {
-            error!("Reconnection attempt to {} failed: {:?}", endpoint, err);
-        }
-    }
-}
-
-fn create_heartbeat() -> Result<Vec<u8>, ConnectionManagerError> {
-    let heartbeat = NetworkHeartbeat::new().write_to_bytes().map_err(|_| {
-        ConnectionManagerError::HeartbeatError("cannot create NetworkHeartbeat message".to_string())
-    })?;
-    let mut heartbeat_message = NetworkMessage::new();
-    heartbeat_message.set_message_type(NetworkMessageType::NETWORK_HEARTBEAT);
-    heartbeat_message.set_payload(heartbeat);
-    let heartbeat_bytes = heartbeat_message.write_to_bytes().map_err(|_| {
-        ConnectionManagerError::HeartbeatError("cannot create NetworkMessage".to_string())
-    })?;
-    Ok(heartbeat_bytes)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1069,8 +893,9 @@ mod tests {
     use std::sync::mpsc;
 
     use crate::mesh::Mesh;
-    use crate::network::auth2::tests::negotiation_connection_auth;
-    use crate::network::auth2::AuthorizationPool;
+    use crate::network::auth::tests::negotiation_connection_auth;
+    use crate::network::auth::AuthorizationManager;
+    use crate::protos::network::{NetworkMessage, NetworkMessageType};
     use crate::transport::inproc::InprocTransport;
     use crate::transport::socket::TcpTransport;
 
@@ -1080,17 +905,16 @@ mod tests {
         transport.listen("inproc://test").unwrap();
         let mesh = Mesh::new(512, 128);
 
-        let mut cm = ConnectionManager::new(
-            Box::new(NoopAuthorizer::new("test_identity")),
-            mesh.get_life_cycle(),
-            mesh.get_sender(),
-            transport,
-            None,
-            None,
-        );
+        let cm = ConnectionManager::builder()
+            .with_authorizer(Box::new(NoopAuthorizer::new("test_identity")))
+            .with_matrix_life_cycle(mesh.get_life_cycle())
+            .with_matrix_sender(mesh.get_sender())
+            .with_transport(transport)
+            .start()
+            .expect("Unable to start Connection Manager");
 
-        cm.start().unwrap();
-        cm.shutdown_and_wait();
+        cm.shutdown_signaler().shutdown();
+        cm.await_shutdown();
     }
 
     #[test]
@@ -1103,21 +927,22 @@ mod tests {
         });
 
         let mesh = Mesh::new(512, 128);
-        let mut cm = ConnectionManager::new(
-            Box::new(NoopAuthorizer::new("test_identity")),
-            mesh.get_life_cycle(),
-            mesh.get_sender(),
-            transport,
-            None,
-            None,
-        );
-        let connector = cm.start().unwrap();
+        let cm = ConnectionManager::builder()
+            .with_authorizer(Box::new(NoopAuthorizer::new("test_identity")))
+            .with_matrix_life_cycle(mesh.get_life_cycle())
+            .with_matrix_sender(mesh.get_sender())
+            .with_transport(transport)
+            .start()
+            .expect("Unable to start Connection Manager");
+
+        let connector = cm.connector();
 
         connector
             .request_connection("inproc://test", "test_id")
             .expect("A connection could not be created");
 
-        cm.shutdown_and_wait();
+        cm.shutdown_signaler().shutdown();
+        cm.await_shutdown();
     }
 
     /// Test that adding the same connection twice is an idempotent operation
@@ -1131,15 +956,15 @@ mod tests {
         });
 
         let mesh = Mesh::new(512, 128);
-        let mut cm = ConnectionManager::new(
-            Box::new(NoopAuthorizer::new("test_identity")),
-            mesh.get_life_cycle(),
-            mesh.get_sender(),
-            transport,
-            None,
-            None,
-        );
-        let connector = cm.start().unwrap();
+        let cm = ConnectionManager::builder()
+            .with_authorizer(Box::new(NoopAuthorizer::new("test_identity")))
+            .with_matrix_life_cycle(mesh.get_life_cycle())
+            .with_matrix_sender(mesh.get_sender())
+            .with_transport(transport)
+            .start()
+            .expect("Unable to start Connection Manager");
+
+        let connector = cm.connector();
 
         connector
             .request_connection("inproc://test", "test_id")
@@ -1149,7 +974,8 @@ mod tests {
             .request_connection("inproc://test", "test_id")
             .expect("A connection could not be re-requested");
 
-        cm.shutdown_and_wait();
+        cm.shutdown_signaler().shutdown();
+        cm.await_shutdown();
     }
 
     /// Test that heartbeats are correctly sent to inproc connections
@@ -1165,15 +991,15 @@ mod tests {
             mesh_clone.add(conn, "test_id".to_string()).unwrap();
         });
 
-        let mut cm = ConnectionManager::new(
-            Box::new(NoopAuthorizer::new("test_identity")),
-            mesh.get_life_cycle(),
-            mesh.get_sender(),
-            transport,
-            Some(1),
-            None,
-        );
-        let connector = cm.start().unwrap();
+        let cm = ConnectionManager::builder()
+            .with_authorizer(Box::new(NoopAuthorizer::new("test_identity")))
+            .with_matrix_life_cycle(mesh.get_life_cycle())
+            .with_matrix_sender(mesh.get_sender())
+            .with_transport(transport)
+            .start()
+            .expect("Unable to start Connection Manager");
+
+        let connector = cm.connector();
 
         connector
             .request_connection("inproc://test", "test_id")
@@ -1188,7 +1014,8 @@ mod tests {
             NetworkMessageType::NETWORK_HEARTBEAT
         );
 
-        cm.shutdown_and_wait();
+        cm.shutdown_signaler().shutdown();
+        cm.await_shutdown();
     }
 
     /// Test that heartbeats are correctly sent to tcp connections
@@ -1223,29 +1050,44 @@ mod tests {
             mesh.shutdown_signaler().shutdown();
         });
 
-        let authorization_pool = AuthorizationPool::new("test_identity".into())
+        let auth_mgr = AuthorizationManager::new("test_identity".into())
             .expect("Unable to create authorization pool");
-        let mut cm = ConnectionManager::new(
-            Box::new(authorization_pool.pool_authorizer()),
-            mesh.get_life_cycle(),
-            mesh.get_sender(),
-            transport,
-            None,
-            None,
-        );
-        let connector = cm.start().unwrap();
+        let cm = ConnectionManager::builder()
+            .with_authorizer(Box::new(auth_mgr.authorization_connector()))
+            .with_matrix_life_cycle(mesh.get_life_cycle())
+            .with_matrix_sender(mesh.get_sender())
+            .with_transport(transport)
+            .start()
+            .expect("Unable to start Connection Manager");
+        let connector = cm.connector();
 
-        let identity = connector
+        connector
             .request_connection(&endpoint, "test_id")
             .expect("A connection could not be created");
 
-        assert_eq!("some-peer", identity);
+        let (sub_tx, sub_rx): (
+            Sender<ConnectionManagerNotification>,
+            mpsc::Receiver<ConnectionManagerNotification>,
+        ) = channel();
+        connector.subscribe(sub_tx).expect("Unable to respond.");
+
+        // Validate that the connection completed authorization
+        let notification = sub_rx.recv().expect("Cannot receive notification");
+        assert!(
+            notification
+                == ConnectionManagerNotification::Connected {
+                    endpoint: endpoint.clone(),
+                    connection_id: "test_id".to_string(),
+                    identity: "some-peer".to_string()
+                }
+        );
 
         // wait for completion
         rx.recv().expect("Did not receive completion signal");
 
-        cm.shutdown_and_wait();
-        authorization_pool.shutdown_and_await();
+        cm.shutdown_signaler().shutdown();
+        cm.await_shutdown();
+        auth_mgr.shutdown_and_await();
     }
 
     #[test]
@@ -1268,21 +1110,37 @@ mod tests {
             mesh.shutdown_signaler().shutdown();
         });
 
-        let authorization_pool = AuthorizationPool::new("test_identity".into())
+        let auth_mgr = AuthorizationManager::new("test_identity".into())
             .expect("Unable to create authorization pool");
-        let mut cm = ConnectionManager::new(
-            Box::new(authorization_pool.pool_authorizer()),
-            mesh.get_life_cycle(),
-            mesh.get_sender(),
-            transport,
-            None,
-            None,
-        );
-        let connector = cm.start().unwrap();
+        let cm = ConnectionManager::builder()
+            .with_authorizer(Box::new(auth_mgr.authorization_connector()))
+            .with_matrix_life_cycle(mesh.get_life_cycle())
+            .with_matrix_sender(mesh.get_sender())
+            .with_transport(transport)
+            .start()
+            .expect("Unable to start Connection Manager");
+        let connector = cm.connector();
+
+        let (sub_tx, sub_rx): (
+            Sender<ConnectionManagerNotification>,
+            mpsc::Receiver<ConnectionManagerNotification>,
+        ) = channel();
+        connector.subscribe(sub_tx).expect("Unable to respond.");
 
         connector
             .request_connection(&endpoint, "test_id")
             .expect("A connection could not be created");
+
+        // Validate that the connection completed authorization
+        let notification = sub_rx.recv().expect("Cannot receive notification");
+        assert!(
+            notification
+                == ConnectionManagerNotification::Connected {
+                    endpoint: endpoint.clone(),
+                    connection_id: "test_id".to_string(),
+                    identity: "some-peer".to_string()
+                }
+        );
 
         assert_eq!(
             vec![endpoint.clone()],
@@ -1304,8 +1162,9 @@ mod tests {
 
         tx.send(()).expect("Could not send completion signal");
 
-        cm.shutdown_and_wait();
-        authorization_pool.shutdown_and_await();
+        cm.shutdown_signaler().shutdown();
+        cm.await_shutdown();
+        auth_mgr.shutdown_and_await();
     }
 
     #[test]
@@ -1313,22 +1172,23 @@ mod tests {
         let transport = Box::new(TcpTransport::default());
         let mesh = Mesh::new(512, 128);
 
-        let mut cm = ConnectionManager::new(
-            Box::new(NoopAuthorizer::new("test_identity")),
-            mesh.get_life_cycle(),
-            mesh.get_sender(),
-            transport,
-            None,
-            None,
-        );
-        let connector = cm.start().unwrap();
+        let cm = ConnectionManager::builder()
+            .with_authorizer(Box::new(NoopAuthorizer::new("test_identity")))
+            .with_matrix_life_cycle(mesh.get_life_cycle())
+            .with_matrix_sender(mesh.get_sender())
+            .with_transport(transport)
+            .start()
+            .expect("Unable to start Connection Manager");
+
+        let connector = cm.connector();
 
         let endpoint_removed = connector
             .remove_connection("tcp://localhost:5000")
             .expect("Unable to remove connection");
 
         assert_eq!(None, endpoint_removed);
-        cm.shutdown_and_wait();
+        cm.shutdown_signaler().shutdown();
+        cm.await_shutdown();
     }
 
     /// test_reconnect_raw_tcp
@@ -1374,7 +1234,11 @@ mod tests {
                 .expect("Connection failed to disconnect");
 
             // wait for reconnection attempt
-            listener.accept().expect("Unable to accept connection");
+            let conn = listener.accept().expect("Unable to accept connection");
+            mesh2
+                .add(conn, "test_id".to_string())
+                .expect("Cannot add connection to mesh");
+            negotiation_connection_auth(&mesh2, "test_id", "some-peer");
 
             // wait for completion
             rx.recv().expect("Did not receive completion signal");
@@ -1382,34 +1246,52 @@ mod tests {
             mesh2.shutdown_signaler().shutdown();
         });
 
-        let authorization_pool = AuthorizationPool::new("test_identity".into())
+        let auth_mgr = AuthorizationManager::new("test_identity".into())
             .expect("Unable to create authorization pool");
-        let mut cm = ConnectionManager::new(
-            Box::new(authorization_pool.pool_authorizer()),
-            mesh1.get_life_cycle(),
-            mesh1.get_sender(),
-            transport,
-            Some(1),
-            None,
-        );
-        let connector = cm.start().expect("Unable to start ConnectionManager");
+        let cm = ConnectionManager::builder()
+            .with_authorizer(Box::new(auth_mgr.authorization_connector()))
+            .with_matrix_life_cycle(mesh1.get_life_cycle())
+            .with_matrix_sender(mesh1.get_sender())
+            .with_transport(transport)
+            .start()
+            .expect("Unable to start Connection Manager");
+        let connector = cm.connector();
+
+        let (sub_tx, sub_rx): (
+            Sender<ConnectionManagerNotification>,
+            mpsc::Receiver<ConnectionManagerNotification>,
+        ) = channel();
+        connector.subscribe(sub_tx).expect("Unable to respond.");
 
         connector
             .request_connection(&endpoint, "test_id")
-            .expect("Unable to request connection");
+            .expect("A connection could not be created");
 
-        let mut subscriber = connector
-            .subscription_iter()
-            .expect("Cannot get subscriber");
+        // Validate that the connection completed authorization
+        let notification = sub_rx.recv().expect("Cannot receive notification");
+        assert!(
+            notification
+                == ConnectionManagerNotification::Connected {
+                    endpoint: endpoint.clone(),
+                    connection_id: "test_id".to_string(),
+                    identity: "some-peer".to_string()
+                }
+        );
+
+        let (subs_tx, subs_rx) = mpsc::channel();
+        connector.subscribe(subs_tx).expect("Cannot subscribe");
+        let mut subscriber = subs_rx.iter();
 
         // receive reconnecting attempt
-        let reconnecting_notification = subscriber
+        let reconnecting_notification: ConnectionManagerNotification = subscriber
             .next()
             .expect("Cannot get message from subscriber");
+
         assert!(
             reconnecting_notification
                 == ConnectionManagerNotification::Disconnected {
                     endpoint: endpoint.clone(),
+                    identity: "some-peer".to_string()
                 }
         );
 
@@ -1417,17 +1299,21 @@ mod tests {
         let reconnection_notification = subscriber
             .next()
             .expect("Cannot get message from subscriber");
-        assert!(
-            reconnection_notification
-                == ConnectionManagerNotification::Connected {
-                    endpoint: endpoint.clone(),
-                }
+
+        assert_eq!(
+            reconnection_notification,
+            ConnectionManagerNotification::Connected {
+                endpoint: endpoint.clone(),
+                connection_id: "test_id".to_string(),
+                identity: "some-peer".to_string()
+            }
         );
 
         tx.send(()).expect("Could not send completion signal");
 
-        cm.shutdown_and_wait();
-        authorization_pool.shutdown_and_await();
+        cm.shutdown_signaler().shutdown();
+        cm.await_shutdown();
+        auth_mgr.shutdown_and_await();
     }
 
     /// Test that an inbound connection may be added to the connection manager
@@ -1443,37 +1329,38 @@ mod tests {
             .expect("Cannot listen for connections");
 
         let mesh = Mesh::new(512, 128);
-        let mut cm = ConnectionManager::new(
-            Box::new(NoopAuthorizer::new("test_identity")),
-            mesh.get_life_cycle(),
-            mesh.get_sender(),
-            Box::new(transport.clone()),
-            Some(1),
-            None,
-        );
 
         let (conn_tx, conn_rx) = mpsc::channel();
 
+        let mut remote_transport = transport.clone();
         let jh = thread::spawn(move || {
-            let _connection = transport
+            let _connection = remote_transport
                 .connect("inproc://test_inbound_connection")
                 .unwrap();
 
             // block until done
             conn_rx.recv().unwrap();
         });
-        let connector = cm.start().expect("Unable to start ConnectionManager");
+        let cm = ConnectionManager::builder()
+            .with_authorizer(Box::new(NoopAuthorizer::new("test_identity")))
+            .with_matrix_life_cycle(mesh.get_life_cycle())
+            .with_matrix_sender(mesh.get_sender())
+            .with_transport(Box::new(transport))
+            .start()
+            .expect("Unable to start Connection Manager");
 
-        let mut subscriber = connector
-            .subscription_iter()
-            .expect("Cannot get subscriber");
+        let connector = cm.connector();
+
+        let (subs_tx, subs_rx) = mpsc::channel();
+        connector.subscribe(subs_tx).expect("Cannot get subscriber");
 
         let connection = listener.accept().unwrap();
         connector
             .add_inbound_connection(connection)
             .expect("Unable to add inbound connection");
 
-        let notification = subscriber
+        let notification = subs_rx
+            .iter()
             .next()
             .expect("Cannot get message from subscriber");
         if let ConnectionManagerNotification::InboundConnection { endpoint, .. } = notification {
@@ -1497,7 +1384,8 @@ mod tests {
         conn_tx.send(()).unwrap();
         jh.join().unwrap();
 
-        cm.shutdown_and_wait();
+        cm.shutdown_signaler().shutdown();
+        cm.await_shutdown();
     }
 
     /// Test that an inbound tcp connection can be add and removed from the network.o
@@ -1512,22 +1400,14 @@ mod tests {
         let endpoint = listener.endpoint();
 
         let mesh = Mesh::new(512, 128);
-        let authorization_pool = AuthorizationPool::new("test_identity".into())
+        let auth_mgr = AuthorizationManager::new("test_identity".into())
             .expect("Unable to create authorization pool");
-        let mut cm = ConnectionManager::new(
-            Box::new(authorization_pool.pool_authorizer()),
-            mesh.get_life_cycle(),
-            mesh.get_sender(),
-            // The transport on this end doesn't matter for this test
-            Box::new(InprocTransport::default()),
-            Some(1),
-            None,
-        );
 
         let (conn_tx, conn_rx) = mpsc::channel();
         let server_endpoint = endpoint.clone();
         let jh = thread::spawn(move || {
             let mesh = Mesh::new(512, 128);
+            let mut transport = Box::new(TcpTransport::default());
             let connection = transport.connect(&server_endpoint).unwrap();
 
             mesh.add(connection, "test_id".into())
@@ -1539,11 +1419,18 @@ mod tests {
             conn_rx.recv().unwrap();
             mesh.shutdown_signaler().shutdown();
         });
-        let connector = cm.start().expect("Unable to start ConnectionManager");
 
-        let mut subscriber = connector
-            .subscription_iter()
-            .expect("Cannot get subscriber");
+        let cm = ConnectionManager::builder()
+            .with_authorizer(Box::new(auth_mgr.authorization_connector()))
+            .with_matrix_life_cycle(mesh.get_life_cycle())
+            .with_matrix_sender(mesh.get_sender())
+            .with_transport(transport)
+            .start()
+            .expect("Unable to start Connection Manager");
+        let connector = cm.connector();
+
+        let (subs_tx, subs_rx) = mpsc::channel();
+        connector.subscribe(subs_tx).expect("Cannot get subscriber");
 
         let connection = listener.accept().unwrap();
         let remote_endpoint = connection.remote_endpoint();
@@ -1551,7 +1438,8 @@ mod tests {
             .add_inbound_connection(connection)
             .expect("Unable to add inbound connection");
 
-        let notification = subscriber
+        let notification = subs_rx
+            .iter()
             .next()
             .expect("Cannot get message from subscriber");
 
@@ -1575,8 +1463,9 @@ mod tests {
         conn_tx.send(()).unwrap();
         jh.join().unwrap();
 
-        cm.shutdown_and_wait();
-        authorization_pool.shutdown_and_await();
+        cm.shutdown_signaler().shutdown();
+        cm.await_shutdown();
+        auth_mgr.shutdown_and_await();
     }
 
     struct NoopAuthorizer {

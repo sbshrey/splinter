@@ -14,6 +14,13 @@
 
 version: "3.7"
 
+networks:
+  gameroom:
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.28.0.0/16
+
 volumes:
   cargo-registry:
   registry:
@@ -26,11 +33,14 @@ services:
 
     generate-registry:
         image: splintercommunity/splinter-cli:master
+        networks:
+          gameroom:
+            ipv4_address: 172.28.1.1
         volumes:
           - registry:/registry
         command: |
           bash -c "
-            if [ ! -f /registry/nodes.yaml ]
+            if [ ! -f /registry/registry.yaml ]
             then
               # generate keys
               splinter admin keygen alice -d /registry
@@ -48,12 +58,12 @@ services:
               # build the registry
               splinter registry build \
                 http://splinterd-node-acme:8085 \
-                --file /registry/nodes.yaml \
+                --file /registry/registry.yaml \
                 --key-file /registry/alice.pub \
                 --metadata organization='ACME Corporation'
               splinter registry build \
                 http://splinterd-node-bubba:8085 \
-                --file /registry/nodes.yaml \
+                --file /registry/registry.yaml \
                 --key-file /registry/bob.pub \
                 --metadata organization='Bubba Bakery'
             fi
@@ -67,6 +77,9 @@ services:
         - 80
       ports:
           - "8099:80"
+      networks:
+        gameroom:
+          ipv4_address: 172.28.1.2
       volumes:
         - registry:/usr/local/apache2/htdocs
 
@@ -82,13 +95,18 @@ services:
         POSTGRES_USER: gameroom
         POSTGRES_PASSWORD: gameroom_example
         POSTGRES_DB: gameroom
+      networks:
+        gameroom:
+          ipv4_address: 172.28.2.1
       volumes:
-        - "./database/tables:/docker-entrypoint-initdb.d"
         - acme-db:/var/lib/postgresql/data/
 
     gameroom-app-acme:
       image: splintercommunity/gameroom-app-acme:master
       container_name: gameroom-app-acme
+      networks:
+        gameroom:
+          ipv4_address: 172.28.2.2
       environment:
         - VUE_APP_BRAND=acme
       expose:
@@ -99,6 +117,9 @@ services:
     gameroomd-acme:
         image: splintercommunity/gameroomd:master
         container_name: gameroomd-acme
+        networks:
+          gameroom:
+            ipv4_address: 172.28.2.3
         volumes:
           - cargo-registry:/root/.cargo/registry
         expose:
@@ -136,25 +157,53 @@ services:
         - 8085
       ports:
         - 8088:8085
+      networks:
+        gameroom:
+          ipv4_address: 172.28.2.4
       volumes:
         - acme-var:/var/lib/splinter
         - ./splinterd-config:/configs
       entrypoint: |
         bash -c "
+          until PGPASSWORD=admin psql -h splinterd-db-acme -U admin -d splinter -c '\q'; do
+            >&2 echo \"Database is unavailable - sleeping\"
+            sleep 1
+          done && \
+          splinter database migrate -C postgres://admin:admin@splinterd-db-acme:5432/splinter && \
           splinter cert generate --skip && \
           splinterd -c ./configs/splinterd-node-acme.toml -vv \
-              --service-endpoint tcp://0.0.0.0:8043 \
+              --database postgres://admin:admin@splinterd-db-acme:5432/splinter \
               --network-endpoints tcps://0.0.0.0:8044 \
               --advertised-endpoints tcps://splinterd-node-acme:8044 \
-              --bind 0.0.0.0:8085 \
-              --registries http://registry-server:80/nodes.yaml \
-              --tls-insecure
+              --rest-api-endpoint 0.0.0.0:8085 \
+              --registries http://registry-server:80/registry.yaml \
+              --tls-insecure \
+              --enable-biome
         "
+
+    splinterd-db-acme:
+      image: postgres
+      container_name: splinterd-db-acme
+      restart: always
+      expose:
+        - 5432
+      ports:
+        - "5435:5432"
+      networks:
+        gameroom:
+          ipv4_address: 172.28.2.5
+      environment:
+        POSTGRES_USER: admin
+        POSTGRES_PASSWORD: admin
+        POSTGRES_DB: splinter
 
     db-bubba:
       image: splintercommunity/gameroom-database:master
       container_name: db-bubba
       restart: always
+      networks:
+        gameroom:
+          ipv4_address: 172.28.3.1
       expose:
         - 5432
       ports:
@@ -164,12 +213,14 @@ services:
         POSTGRES_PASSWORD: gameroom_example
         POSTGRES_DB: gameroom
       volumes:
-        - "./database/tables:/docker-entrypoint-initdb.d"
         - bubba-db:/var/lib/postgresql/data/
 
     gameroom-app-bubba:
       image: splintercommunity/gameroom-app-bubba:master
       container_name: gameroom-app-bubba
+      networks:
+        gameroom:
+          ipv4_address: 172.28.3.2
       environment:
         - VUE_APP_BRAND=bubba
       expose:
@@ -180,6 +231,9 @@ services:
     gameroomd-bubba:
         image: splintercommunity/gameroomd:master
         container_name: gameroomd-bubba
+        networks:
+          gameroom:
+            ipv4_address: 172.28.3.3
         volumes:
           - cargo-registry:/root/.cargo/registry
         expose:
@@ -217,17 +271,42 @@ services:
         - 8085
       ports:
         - 8089:8085
+      networks:
+        gameroom:
+          ipv4_address: 172.28.3.4
       volumes:
         - ./splinterd-config:/configs
         - bubba-var:/var/lib/splinter
       entrypoint: |
         bash -c "
+          until PGPASSWORD=admin psql -h splinterd-db-bubba -U admin -d splinter -c '\q'; do
+            >&2 echo \"Database is unavailable - sleeping\"
+            sleep 1
+          done && \
+          splinter database migrate -C postgres://admin:admin@splinterd-db-bubba:5432/splinter && \
           splinter cert generate --skip && \
           splinterd -c ./configs/splinterd-node-bubba.toml -vv \
-              --service-endpoint tcp://0.0.0.0:8043 \
+              --database postgres://admin:admin@splinterd-db-acme:5432/splinter \
               --network-endpoints tcps://0.0.0.0:8044 \
               --advertised-endpoints tcps://splinterd-node-bubba:8044 \
-              --bind 0.0.0.0:8085 \
-              --registries http://registry-server:80/nodes.yaml \
-              --tls-insecure
+              --rest-api-endpoint 0.0.0.0:8085 \
+              --registries http://registry-server:80/registry.yaml \
+              --tls-insecure \
+              --enable-biome
         "
+
+    splinterd-db-bubba:
+      image: postgres
+      container_name: splinterd-db-bubba
+      restart: always
+      expose:
+        - 5432
+      ports:
+        - "5434:5432"
+      networks:
+        gameroom:
+          ipv4_address: 172.28.3.5
+      environment:
+        POSTGRES_USER: admin
+        POSTGRES_PASSWORD: admin
+        POSTGRES_DB: splinter

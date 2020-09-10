@@ -1,4 +1,9 @@
 % SPLINTERD(1) Cargill, Incorporated | Splinter Commands
+<!--
+  Copyright 2018-2020 Cargill Incorporated
+  Licensed under Creative Commons Attribution 4.0 International License
+  https://creativecommons.org/licenses/by/4.0/
+-->
 
 NAME
 ====
@@ -46,6 +51,14 @@ in `/etc/splinter/certs/` by default. If necessary, you can change the
 directory, specify individual file paths and names, or use self-signed
 (insecure) certificates in a development environment. For more information, see
 the certificate-related options and CERTIFICATE FILES, below.
+
+**Directory Locations**
+
+This command includes several options that change default Splinter directory
+locations. These directory locations can also be changed with environment
+variables or settings in the `splinterd` TOML configuration file. For more
+information, see `--config-dir`, `--storage` `--tls-cert-dir`, and
+"SPLINTER DIRECTORY PATHS", below.
 
 FLAGS
 =====
@@ -95,9 +108,6 @@ OPTIONS
   Specify multiple endpoints in a comma-separated list or with separate
   `--advertised-endpoint` options.
 
-`--bind BIND-ENDPOINT`
-: Specifies the connection endpoint for the REST API. (Default: 127.0.0.1:8080.)
-
 `-c`, `--config` `CONFIG-FILE`
 : Specifies the path and file name for a `splinterd` configuration file, which
   is a TOML file that contains `splinterd` settings. (The file name must end
@@ -111,10 +121,8 @@ OPTIONS
   configuration file.
 
 `--config-dir CONFIG-DIR`
-: Specifies the directory containing configuration files.
-  (Default: `/etc/splinter`.)
-
-  This option overrides the `SPLINTER_CONFIG_DIR` environment variable, if set.
+: Specifies the directory containing Splinter configuration files. (Default:
+  `/etc/splinter`, unless `SPLINTER_CONFIG_DIR` or `SPLINTER_HOME` is set.)
 
 `--display-name DISPLAY-NAME`
 : Specifies a human-readable name for the node (Default: "Node NODE-ID")
@@ -132,7 +140,8 @@ OPTIONS
 
 `-n`, `--network-endpoints` `NETWORK-ENDPOINT`
 : Specifies the endpoint for daemon-to-daemon communication between Splinter
-  nodes, using the format `tcp://ip:port`. (Default: 127.0.0.1:8044.)
+  nodes, using the format `protocol_prefix://ip:port`.
+  (Default: tcps://127.0.0.1:8044.)
 
   Specify multiple endpoints in a comma-separated list or with separate
   `-n` or `--network-endpoint` options.
@@ -151,17 +160,30 @@ OPTIONS
   type of connection that is created.
 
 `--registries REGISTRY-FILE` `[,...]`
-: Specifies one or more read-only node registry files.
+: Specifies one or more read-only Splinter registry files.
 
-`--service-endpoint SERVICE-ENDPOINT`
-: Specifies the endpoint for service-to-daemon communication, using the format
-  `tcp://ip:port`. (Default: `127.0.0.1:8043`.)
+`--registry-auto-refresh SECONDS`
+: Specifies how often, in seconds, to fetch remote node registry changes in the
+  background. (Default: 600 seconds.) Use 0 to turn off automatic refreshes.
+
+`--registry-forced-refresh SECONDS`
+: Specifies how often, in seconds, to fetch remote node registry changes on
+  read. (Default: 10 seconds.) Use 0 to turn off forced refreshes.
+
+`--rest-api-endpoint REST-API-ENDPOINT`
+: Specifies the connection endpoint for the REST API. (Default: 127.0.0.1:8080.)
+
+`--state-dir STATE-DIR`
+: Specifies the storage directory.
+  (Default: `/var/lib/splinter`.)
+
+  This option overrides the `SPLINTER_STATE_DIR` environment variable, if set.
 
 `--storage STORAGE-TYPE`
 : Specifies whether to store circuit state in memory or in a local YAML file.
-  *STORAGE-TYPE* can be `memory` or `yaml` (the default). By default, this
-  file is stored in `/var/lib/splinter` (unless `SPLINTER_STATE_DIR`
-  is set).
+  *STORAGE-TYPE* can be `memory` or `yaml` (the default). For `yaml`, the file
+  is stored in the default state directory, `/var/lib/splinter`, unless
+  `SPLINTER_STATE_DIR` or `SPLINTER_HOME` is set.
 
   Using `memory` for storage means that circuits will not persist when
   `splinterd` restarts.
@@ -174,10 +196,8 @@ OPTIONS
 
 `--tls-cert-dir CERT-DIR`
 : Specifies the directory that contains the trusted CA certificates and
-  associated key files. (Default: `/etc/splinter/certs/`.)
-
-  This option overrides the `SPLINTER_CERT_DIR` environment variable, if set,
-  and any setting in the `splinterd` configuration file.
+  associated key files. (Default: `/etc/splinter/certs/`, unless
+  `SPLINTER_CERT_DIR` or `SPLINTER_HOME` is set).
 
 `--tls-client-cert CERT-FILE`
 : Specifies the path and file name for the client certificate, which is
@@ -211,7 +231,8 @@ CERTIFICATE FILES
 
 When the Splinter daemon runs in TLS mode (using `tcps` connections at the
 transport layer), it requires certificate authority (CA) certificates and
-associated keys that are stored in `/etc/splinter/certs/` by default.
+associated keys that are stored in `/etc/splinter/certs/` by default
+(or `$SPLINTER_HOME/certs` if that environment variable is set).
 
 You can change the certificate directory by using the `--tls-cert-dir` option,
 setting the `SPLINTER_CERT_DIR` environment variable, or specifying the
@@ -237,6 +258,43 @@ self-signed certificates and keys (which can be generated by the
 Development](https://github.com/Cargill/splinter-docs/blob/master/docs/howto/generating_insecure_certificates_for_development.md)"
 in the Splinter documentation.
 
+SPLINTER DIRECTORY PATHS
+========================
+
+Several Splinter directories have the following default locations:
+
+* Splinter configuration directory: `/etc/splinter`
+
+* State directory: `/var/lib/splinter/`
+
+* TLS certificate directory: `/etc/splinter/certs/`
+
+For the configuration and certificate directories, the directory paths can be
+changed individually with a `splinterd` option, a setting in a TOML config file,
+or an environment variable. (The state directory location is controlled only by
+an environment variable when the default YAML storage type is used; no config
+setting or command option is available.) For more information, see
+`--config-dir`, `--storage` and `--tls-cert-dir`.
+
+In addition, the `SPLINTER_HOME` environment variable provides a simple way to
+change the base path for all of these directories. This variable is intended for
+development and testing. When `SPLINTER_HOME` is set, the default directory
+paths are:
+
+* Splinter configuration directory: `$SPLINTER_HOME/etc/`
+
+* State directory: `$SPLINTER_HOME/data/`
+
+* TLS certificate directory: `$SPLINTER_HOME/certs/`
+
+For example, if `SPLINTER_HOME` is set to `/tmp/testing`, the default path for
+the Splinter state directory is `/tmp/testing/data/`.
+
+Note: If an individual environment variable is set, it overrides the value in
+`SPLINTER_HOME` (if also set) for that directory. For example, `SPLINTER_HOME`
+is set to `/tmp/testing` and `SPLINTER_STATE_DIR` is set to
+`/tmp/splinter/state`, the Splinter state directory is `/tmp/splinter/state`.
+
 ENVIRONMENT VARIABLES
 =====================
 
@@ -244,22 +302,46 @@ ENVIRONMENT VARIABLES
 : Specifies the directory containing certificate and associated key files.
   (See `--tls-cert-dir`.)
 
+**SPLINTER_CONFIG_DIR**
+: Specifies the directory containing configuration files.
+  (See: `--config-dir`.)
+
+**SPLINTER_HOME**
+: Changes the base directory path for the Splinter directories, including the
+  certificate directory. See the "SPLINTER DIRECTORY PATHS" for more
+  information.
+
+  This value is not used if an environment variable for a specific directory
+  is set (`SPLINTER_CERT_DIR`, `SPLINTER_CONFIG_DIR`, or `SPLINTER_STATE_DIR`).
+
 **SPLINTER_STATE_DIR**
 : Specifies where to store the circuit state YAML file, if `--storage` is
   set to `yaml`. (See `--storage`.) By default, this file is stored in
   `/var/lib/splinter`.
 
-**SPLINTER_CONFIG_DIR**
-: Specifies the directory containing configuration files.
-  (See: `--config-dir`.)
+**SPLINTER_STRICT_REF_COUNT**
+: Turns on strict peer reference counting. If `SPLINTER_STRICT_REF_COUNT`is set
+  to `true` and the peer manager tries to remove a peer reference that does not
+  exist, the Splinter daemon will panic. By default, the daemon does not panic
+  and instead logs an error. This environment variable is intended for
+  development and testing.
 
 FILES
 =====
+
+`/etc/splinter/`
+: Default location for the Splinter configuration directory. Note: If
+  `$SPLINTER_HOME` is set, the default location is `$SPLINTER_HOME/etc/`.
+
 `/etc/splinter/certs/`
-: Default location for CA certificates and keys
+: Default location for the TLS certificate directory, which stores CA
+  certificates and the associated keys. Note: If `SPLINTER_HOME` is set, the
+  default location is `$SPLINTER_HOME/certs/`.
 
 `/var/lib/splinter/`
-: Default location for the circuit state YAML file.
+: Default location for the Splinter state directory, which stores the circuit
+  state YAML file (unless `--storage` is set to `memory`). Note: If
+  `$SPLINTER_HOME` is set, the default location is `$SPLINTER_HOME/data/`.
 
 EXAMPLES
 ========
@@ -295,4 +377,4 @@ SEE ALSO
 | `splinter-circuit-propose(1)`
 | `splinter-cert-generate(1)`
 |
-| Splinter documentation: https://github.com/Cargill/splinter-docs/blob/master/docs/index.md
+| Splinter documentation: https://www.splinter.dev/docs/0.5/

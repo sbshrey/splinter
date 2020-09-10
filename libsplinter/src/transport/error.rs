@@ -110,14 +110,14 @@ impl From<io::Error> for DisconnectError {
 
 #[derive(Debug)]
 pub enum ListenError {
-    IoError(io::Error),
+    IoError(String, io::Error),
     ProtocolError(String),
 }
 
 impl Error for ListenError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
-            ListenError::IoError(err) => Some(err),
+            ListenError::IoError(_, err) => Some(err),
             ListenError::ProtocolError(_) => None,
         }
     }
@@ -126,15 +126,9 @@ impl Error for ListenError {
 impl std::fmt::Display for ListenError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            ListenError::IoError(err) => write!(f, "io error occurred: {}", err),
+            ListenError::IoError(msg, err) => write!(f, "io error occurred: {}: {}", msg, err),
             ListenError::ProtocolError(err) => write!(f, "protocol error occurred: {}", err),
         }
-    }
-}
-
-impl From<io::Error> for ListenError {
-    fn from(io_error: io::Error) -> Self {
-        ListenError::IoError(io_error)
     }
 }
 
@@ -214,6 +208,209 @@ impl From<io::Error> for SendError {
             io::ErrorKind::UnexpectedEof => SendError::Disconnected,
             io::ErrorKind::WouldBlock => SendError::WouldBlock,
             _ => SendError::IoError(io_error),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct ConnectionMatrixAddError {
+    pub context: String,
+    pub source: Option<Box<dyn Error + Send>>,
+}
+
+impl ConnectionMatrixAddError {
+    pub fn new(context: String, source: Option<Box<dyn Error + Send>>) -> Self {
+        Self { context, source }
+    }
+}
+
+impl Error for ConnectionMatrixAddError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        if let Some(ref err) = self.source {
+            Some(&**err)
+        } else {
+            None
+        }
+    }
+}
+
+impl std::fmt::Display for ConnectionMatrixAddError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        if let Some(ref err) = self.source {
+            write!(f, "{}: {}", self.context, err)
+        } else {
+            f.write_str(&self.context)
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct ConnectionMatrixRemoveError {
+    pub context: String,
+    pub source: Option<Box<dyn Error + Send>>,
+}
+
+impl ConnectionMatrixRemoveError {
+    pub fn new(context: String, source: Option<Box<dyn Error + Send>>) -> Self {
+        Self { context, source }
+    }
+}
+
+impl Error for ConnectionMatrixRemoveError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        if let Some(ref err) = self.source {
+            Some(&**err)
+        } else {
+            None
+        }
+    }
+}
+
+impl std::fmt::Display for ConnectionMatrixRemoveError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        if let Some(ref err) = self.source {
+            write!(f, "{}: {}", self.context, err)
+        } else {
+            f.write_str(&self.context)
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct ConnectionMatrixSendError {
+    pub context: String,
+    pub source: Option<Box<dyn Error + Send>>,
+}
+
+impl ConnectionMatrixSendError {
+    pub fn new(context: String, source: Option<Box<dyn Error + Send>>) -> Self {
+        Self { context, source }
+    }
+}
+
+impl Error for ConnectionMatrixSendError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        if let Some(ref err) = self.source {
+            Some(&**err)
+        } else {
+            None
+        }
+    }
+}
+
+impl std::fmt::Display for ConnectionMatrixSendError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        if let Some(ref err) = self.source {
+            write!(f, "{}: {}", self.context, err)
+        } else {
+            f.write_str(&self.context)
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum ConnectionMatrixRecvError {
+    Disconnected,
+    InternalError {
+        context: String,
+        source: Option<Box<dyn Error + Send>>,
+    },
+    Shutdown,
+}
+
+impl ConnectionMatrixRecvError {
+    pub fn new_internal_error(context: String, source: Option<Box<dyn Error + Send>>) -> Self {
+        ConnectionMatrixRecvError::InternalError { context, source }
+    }
+}
+
+impl Error for ConnectionMatrixRecvError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        match self {
+            ConnectionMatrixRecvError::Disconnected => None,
+            ConnectionMatrixRecvError::InternalError { source, .. } => {
+                if let Some(ref err) = source {
+                    Some(&**err)
+                } else {
+                    None
+                }
+            }
+            ConnectionMatrixRecvError::Shutdown => None,
+        }
+    }
+}
+
+impl std::fmt::Display for ConnectionMatrixRecvError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            ConnectionMatrixRecvError::Disconnected => {
+                f.write_str("Unable to receive: channel has disconnected")
+            }
+            ConnectionMatrixRecvError::InternalError { context, source } => {
+                if let Some(ref err) = source {
+                    write!(f, "{}: {}", context, err)
+                } else {
+                    f.write_str(&context)
+                }
+            }
+            ConnectionMatrixRecvError::Shutdown => {
+                f.write_str("Unable to receive: matrix has shutdown")
+            }
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum ConnectionMatrixRecvTimeoutError {
+    Timeout,
+    Disconnected,
+    InternalError {
+        context: String,
+        source: Option<Box<dyn Error + Send>>,
+    },
+    Shutdown,
+}
+
+impl ConnectionMatrixRecvTimeoutError {
+    pub fn new_internal_error(context: String, source: Option<Box<dyn Error + Send>>) -> Self {
+        ConnectionMatrixRecvTimeoutError::InternalError { context, source }
+    }
+}
+
+impl Error for ConnectionMatrixRecvTimeoutError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        match self {
+            ConnectionMatrixRecvTimeoutError::Timeout => None,
+            ConnectionMatrixRecvTimeoutError::Disconnected => None,
+            ConnectionMatrixRecvTimeoutError::InternalError { source, .. } => {
+                if let Some(ref err) = source {
+                    Some(&**err)
+                } else {
+                    None
+                }
+            }
+            ConnectionMatrixRecvTimeoutError::Shutdown => None,
+        }
+    }
+}
+
+impl std::fmt::Display for ConnectionMatrixRecvTimeoutError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            ConnectionMatrixRecvTimeoutError::Timeout => f.write_str("Unable to receive: Timeout"),
+            ConnectionMatrixRecvTimeoutError::Disconnected => {
+                f.write_str("Unable to receive: channel has disconnected")
+            }
+            ConnectionMatrixRecvTimeoutError::InternalError { context, source } => {
+                if let Some(ref err) = source {
+                    write!(f, "{}: {}", context, err)
+                } else {
+                    f.write_str(&context)
+                }
+            }
+            ConnectionMatrixRecvTimeoutError::Shutdown => {
+                f.write_str("Unable to receive: matrix has shutdown")
+            }
         }
     }
 }

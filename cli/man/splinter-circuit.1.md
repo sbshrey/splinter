@@ -1,4 +1,9 @@
 % SPLINTER-CIRCUIT(1) Cargill, Incorporated | Splinter Commands
+<!--
+  Copyright 2018-2020 Cargill Incorporated
+  Licensed under Creative Commons Attribution 4.0 International License
+  https://creativecommons.org/licenses/by/4.0/
+-->
 
 NAME
 ====
@@ -64,4 +69,4 @@ SEE ALSO
 | `splinter-circuit-proposals(1)`
 | `splinter-circuit-show(1)`
 |
-| Splinter documentation: https://github.com/Cargill/splinter-docs/blob/master/docs/index.md
+| Splinter documentation: https://www.splinter.dev/docs/0.5/

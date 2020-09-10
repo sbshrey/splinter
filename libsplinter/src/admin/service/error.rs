@@ -17,7 +17,7 @@ use std::fmt;
 
 use crate::circuit;
 use crate::consensus::error::ProposalManagerError;
-use crate::orchestrator::{InitializeServiceError, ShutdownServiceError};
+use crate::orchestrator::InitializeServiceError;
 use crate::service::error::{ServiceError, ServiceSendError};
 use crate::signing;
 
@@ -104,6 +104,48 @@ impl fmt::Display for AdminSubscriberError {
     }
 }
 
+#[derive(Debug)]
+pub struct AdminKeyVerifierError {
+    context: String,
+    source: Option<Box<dyn Error + Send>>,
+}
+
+impl AdminKeyVerifierError {
+    pub fn new(context: &str) -> Self {
+        Self {
+            context: context.into(),
+            source: None,
+        }
+    }
+
+    pub fn new_with_source(context: &str, err: Box<dyn Error + Send>) -> Self {
+        Self {
+            context: context.into(),
+            source: Some(err),
+        }
+    }
+}
+
+impl Error for AdminKeyVerifierError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        if let Some(ref err) = self.source {
+            Some(&**err)
+        } else {
+            None
+        }
+    }
+}
+
+impl fmt::Display for AdminKeyVerifierError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        if let Some(ref err) = self.source {
+            write!(f, "{}: {}", self.context, err)
+        } else {
+            f.write_str(&self.context)
+        }
+    }
+}
+
 impl From<ServiceError> for ProposalManagerError {
     fn from(err: ServiceError) -> Self {
         ProposalManagerError::Internal(Box::new(err))
@@ -120,7 +162,6 @@ pub enum AdminSharedError {
         context: String,
         source: Option<InitializeServiceError>,
     },
-    ServiceShutdownFailed(Vec<ShutdownServiceError>),
     ServiceSendError(ServiceSendError),
     UnknownAction(String),
     ValidationFailed(String),
@@ -152,7 +193,6 @@ impl Error for AdminSharedError {
                     None
                 }
             }
-            AdminSharedError::ServiceShutdownFailed(_) => None,
             AdminSharedError::ServiceSendError(err) => Some(err),
             AdminSharedError::UnknownAction(_) => None,
             AdminSharedError::ValidationFailed(_) => None,
@@ -182,14 +222,6 @@ impl fmt::Display for AdminSharedError {
                 } else {
                     f.write_str(&context)
                 }
-            }
-            AdminSharedError::ServiceShutdownFailed(err) => {
-                let err_message = err
-                    .iter()
-                    .map(|err| format!("{}", err))
-                    .collect::<Vec<String>>()
-                    .join(", ");
-                write!(f, "failed to shutdown services: {}", err_message)
             }
             AdminSharedError::ServiceSendError(err) => {
                 write!(f, "failed to send service message: {}", err)
@@ -242,6 +274,12 @@ impl From<OpenProposalError> for AdminSharedError {
 impl From<circuit::SplinterStateError> for AdminSharedError {
     fn from(err: circuit::SplinterStateError) -> Self {
         AdminSharedError::SplinterStateError(err)
+    }
+}
+
+impl From<AdminKeyVerifierError> for AdminSharedError {
+    fn from(err: AdminKeyVerifierError) -> Self {
+        AdminSharedError::ValidationFailed(format!("unable to verify key permissions: {}", err))
     }
 }
 

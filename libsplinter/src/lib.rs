@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#![cfg_attr(feature = "benchmark", feature(test))]
+
 #[macro_use]
 extern crate log;
 #[macro_use]
@@ -62,7 +64,7 @@ mod base62;
 pub mod biome;
 pub mod channel;
 pub mod circuit;
-pub mod collections;
+mod collections;
 pub mod consensus;
 #[cfg(feature = "diesel")]
 pub mod database;
@@ -70,19 +72,22 @@ pub mod database;
 pub mod events;
 mod hex;
 pub mod keys;
-#[cfg(feature = "matrix")]
-mod matrix;
 pub mod mesh;
 pub mod network;
-pub mod node_registry;
 pub mod orchestrator;
+pub mod peer;
 pub mod protocol;
 pub mod protos;
+#[cfg(feature = "registry")]
+pub mod registry;
 #[cfg(feature = "rest-api")]
 pub mod rest_api;
 pub mod service;
 pub mod signing;
 pub mod storage;
+#[cfg(feature = "store-factory")]
+pub mod store;
+mod threading;
 pub mod transport;
 
 #[cfg(feature = "rest-api")]

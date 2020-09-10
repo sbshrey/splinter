@@ -30,15 +30,12 @@
 /cli/Cargo.lock
 /cli/packaging/man/*.1
 
-/examples/private_xo/target
-/examples/private_xo/Cargo.lock
-/examples/private_xo/demo_state/local_registry.yaml
-/examples/private_xo/demo_state/circuit_proposals.yaml
+/services/scabbard/cli/target
+/services/scabbard/cli/Cargo.lock
+/services/scabbard/cli/packaging/man/*.1
 
-/examples/private_counter/service/target
-/examples/private_counter/service/Cargo.lock
-/examples/private_counter/demo_state/local_registry.yaml
-/examples/private_counter/demo_state/circuit_proposals.yaml
+/services/scabbard/libscabbard/target
+/services/scabbard/libscabbard/Cargo.lock
 
 /examples/gameroom/database/target
 /examples/gameroom/database/Cargo.lock
@@ -47,6 +44,8 @@
 /examples/gameroom/daemon/Cargo.lock
 
 /examples/gameroom/gameroom-app/src/compiled_protos.json
+
+/services/scabbard/cli/packaging/man/*.1
 
 /tests/Cargo.lock
 /tests/target

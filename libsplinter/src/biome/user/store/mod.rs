@@ -22,7 +22,7 @@ pub(in crate::biome) mod memory;
 pub use error::UserStoreError;
 
 /// Represents a user of a splinter application
-#[derive(Clone, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct User {
     id: String,
 }
@@ -33,7 +33,6 @@ impl User {
     /// # Arguments
     ///
     /// * `user_id`: unique identifier for the user being created
-    #[cfg(feature = "rest-api")]
     pub fn new(user_id: &str) -> Self {
         User {
             id: user_id.to_string(),
@@ -88,5 +87,30 @@ pub trait CloneBoxUserStore: UserStore {
 impl Clone for Box<dyn CloneBoxUserStore> {
     fn clone(&self) -> Box<dyn CloneBoxUserStore> {
         self.clone_box()
+    }
+}
+
+impl<US> UserStore for Box<US>
+where
+    US: UserStore + ?Sized,
+{
+    fn add_user(&self, user: User) -> Result<(), UserStoreError> {
+        (**self).add_user(user)
+    }
+
+    fn update_user(&self, updated_user: User) -> Result<(), UserStoreError> {
+        (**self).update_user(updated_user)
+    }
+
+    fn remove_user(&self, id: &str) -> Result<(), UserStoreError> {
+        (**self).remove_user(id)
+    }
+
+    fn fetch_user(&self, id: &str) -> Result<User, UserStoreError> {
+        (**self).fetch_user(id)
+    }
+
+    fn list_users(&self) -> Result<Vec<User>, UserStoreError> {
+        (**self).list_users()
     }
 }

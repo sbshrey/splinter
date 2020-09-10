@@ -26,8 +26,6 @@ pub(in crate::biome::credentials) trait CredentialsStoreListUsernamesOperation {
 impl<'a, C> CredentialsStoreListUsernamesOperation for CredentialsStoreOperations<'a, C>
 where
     C: diesel::Connection,
-    <C as diesel::Connection>::Backend: diesel::backend::SupportsDefaultKeyword,
-    <C as diesel::Connection>::Backend: 'static,
     i64: diesel::deserialize::FromSql<diesel::sql_types::BigInt, C::Backend>,
     String: diesel::deserialize::FromSql<diesel::sql_types::Text, C::Backend>,
 {
@@ -36,7 +34,6 @@ where
             .select(user_credentials::all_columns)
             .load::<CredentialsModel>(self.conn)
             .map(Some)
-            .or_else(Err)
             .map_err(|err| CredentialsStoreError::QueryError {
                 context: "Failed to fetch usernames".to_string(),
                 source: Box::new(err),
